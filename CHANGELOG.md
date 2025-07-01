@@ -149,7 +149,7 @@
 - [ ] Multi-year calendar generation
 
 #### Horoscope Generation
-- [ ] Birth chart calculations
+- [ ] Birth chart calculations 
 - [ ] Planetary house positions
 - [ ] House cusp calculations
 - [ ] Planetary aspects analysis
