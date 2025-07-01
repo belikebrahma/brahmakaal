@@ -5,6 +5,7 @@ from datetime import datetime, timezone, timedelta
 from .kaal import Kaal
 from .core.ayanamsha import AyanamshaEngine
 from .core.muhurta import MuhurtaEngine, MuhurtaType, MuhurtaRequest, find_marriage_muhurta, find_business_muhurta, find_travel_muhurta
+from .core.festivals import FestivalEngine, Region, FestivalCategory, FestivalType
 
 def format_output(data, format_type='human'):
     """Format output data based on specified format"""
@@ -280,13 +281,164 @@ def cmd_muhurta(args):
             
             print("-" * 60)
 
+def cmd_festivals(args):
+    """Generate Hindu festival calendar"""
+    # Parse dates
+    if args.year:
+        year = args.year
+    else:
+        year = datetime.now().year
+    
+    # Parse regions
+    region_map = {
+        'all_india': Region.ALL_INDIA,
+        'north_india': Region.NORTH_INDIA,
+        'south_india': Region.SOUTH_INDIA,
+        'west_india': Region.WEST_INDIA,
+        'east_india': Region.EAST_INDIA,
+        'maharashtra': Region.MAHARASHTRA,
+        'gujarat': Region.GUJARAT,
+        'bengal': Region.BENGAL,
+        'tamil_nadu': Region.TAMIL_NADU,
+        'kerala': Region.KERALA,
+        'karnataka': Region.KARNATAKA,
+        'andhra_pradesh': Region.ANDHRA_PRADESH,
+        'rajasthan': Region.RAJASTHAN,
+        'punjab': Region.PUNJAB,
+        'odisha': Region.ODISHA,
+        'assam': Region.ASSAM
+    }
+    
+    regions = [region_map.get(r, Region.ALL_INDIA) for r in args.regions]
+    
+    # Parse categories
+    category_map = {
+        'all': None,
+        'major': FestivalCategory.MAJOR,
+        'religious': FestivalCategory.RELIGIOUS,
+        'seasonal': FestivalCategory.SEASONAL,
+        'regional': FestivalCategory.REGIONAL,
+        'spiritual': FestivalCategory.SPIRITUAL,
+        'cultural': FestivalCategory.CULTURAL,
+        'astronomical': FestivalCategory.ASTRONOMICAL
+    }
+    
+    categories = None
+    if 'all' not in args.categories:
+        categories = [category_map[c] for c in args.categories if c in category_map]
+    
+    # Initialize engines
+    kaal = Kaal(args.ephemeris)
+    festival_engine = FestivalEngine(kaal)
+    
+    # Calculate festivals
+    if args.month:
+        # Get festivals for specific month
+        festivals = festival_engine.get_festivals_for_month(year, args.month, regions)
+        period_desc = f"{year}-{args.month:02d}"
+    else:
+        # Get festivals for entire year
+        festivals = festival_engine.calculate_festival_dates(year, regions, categories)
+        period_desc = str(year)
+    
+    print(f"Hindu Festival Calendar for {period_desc}")
+    print(f"Regions: {', '.join([r.value.replace('_', ' ').title() for r in regions])}")
+    if categories:
+        print(f"Categories: {', '.join([c.value.replace('_', ' ').title() for c in categories])}")
+    print("=" * 80)
+    
+    if not festivals:
+        print("No festivals found for the specified criteria.")
+        return
+    
+    if args.format == 'json':
+        # JSON output
+        json_output = festival_engine.export_to_json(festivals)
+        print(json_output)
+    elif args.format == 'ical':
+        # iCal output
+        ical_output = festival_engine.export_to_ical(festivals)
+        print(ical_output)
+    else:
+        # Human-readable format
+        current_month = None
+        festival_count = 0
+        
+        for festival in festivals:
+            # Group by month
+            if festival.date.month != current_month:
+                current_month = festival.date.month
+                month_name = datetime(year, current_month, 1).strftime('%B')
+                print(f"\n{month_name} {year}")
+                print("-" * 30)
+            
+            # Display festival
+            date_str = festival.date.strftime('%d %b')
+            day_name = festival.date.strftime('%A')
+            
+            print(f"{date_str} ({day_name}) - {festival.festival_rule.english_name}")
+            
+            if festival.festival_rule.alternative_names:
+                alt_names = ', '.join(festival.festival_rule.alternative_names)
+                print(f"    Also known as: {alt_names}")
+            
+            print(f"    Type: {festival.festival_rule.festival_type.value.title()}")
+            print(f"    Category: {festival.festival_rule.category.value.replace('_', ' ').title()}")
+            
+            if festival.festival_rule.description:
+                print(f"    Description: {festival.festival_rule.description}")
+            
+            if festival.festival_rule.duration_days > 1:
+                print(f"    Duration: {festival.festival_rule.duration_days} days")
+            
+            if festival.festival_rule.observance_time != 'full_day':
+                print(f"    Best Time: {festival.festival_rule.observance_time.replace('_', ' ').title()}")
+            
+            # Regional information
+            if len(festival.festival_rule.regions) == 1 and festival.festival_rule.regions[0] != Region.ALL_INDIA:
+                region_name = festival.festival_rule.regions[0].value.replace('_', ' ').title()
+                print(f"    Regional: {region_name}")
+            
+            # Additional lunar/solar information
+            if festival.additional_info:
+                info_parts = []
+                if 'lunar_month' in festival.additional_info:
+                    info_parts.append(f"Lunar: {festival.additional_info['lunar_month']}")
+                if 'paksha' in festival.additional_info:
+                    info_parts.append(f"Paksha: {festival.additional_info['paksha'].title()}")
+                if 'tithi' in festival.additional_info:
+                    info_parts.append(f"Tithi: {festival.additional_info['tithi']}")
+                if 'nakshatra' in festival.additional_info:
+                    info_parts.append(f"Nakshatra: {festival.additional_info['nakshatra']}")
+                if 'solar_event' in festival.additional_info:
+                    info_parts.append(f"Solar: {festival.additional_info['solar_event'].replace('_', ' ')}")
+                
+                if info_parts:
+                    print(f"    Astronomical: {' | '.join(info_parts)}")
+            
+            print()
+            festival_count += 1
+        
+        print(f"Total festivals found: {festival_count}")
+        
+        # Export options
+        if args.export_ical:
+            ical_content = festival_engine.export_to_ical(festivals, args.export_ical)
+            print(f"\niCal calendar exported to: {args.export_ical}")
+        
+        if args.export_json:
+            json_content = festival_engine.export_to_json(festivals)
+            with open(args.export_json, 'w', encoding='utf-8') as f:
+                f.write(json_content)
+            print(f"JSON calendar exported to: {args.export_json}")
+
 def main():
     parser = argparse.ArgumentParser(description='Brahmakaal - Advanced Vedic Ephemeris Engine')
     
     # Global arguments
     parser.add_argument('--ephemeris', type=str, default='data/de441.bsp', 
                        help='Path to ephemeris file (default: data/de441.bsp)')
-    parser.add_argument('--format', choices=['human', 'json'], default='human',
+    parser.add_argument('--format', choices=['human', 'json', 'ical'], default='human',
                        help='Output format (default: human)')
     
     # Create subparsers
@@ -338,6 +490,23 @@ def main():
                                choices=['excellent', 'very_good', 'good', 'average'],
                                help='Minimum quality level (default: good)')
     muhurta_parser.set_defaults(func=cmd_muhurta)
+    
+    # Festival command
+    festival_parser = subparsers.add_parser('festivals', help='Generate Hindu festival calendar')
+    festival_parser.add_argument('--year', type=int, help='Year to generate calendar for (default: current year)')
+    festival_parser.add_argument('--month', type=int, choices=range(1, 13), 
+                                help='Specific month (1-12) to show festivals for')
+    festival_parser.add_argument('--regions', nargs='+', default=['all_india'],
+                               choices=['all_india', 'north_india', 'south_india', 'west_india', 'east_india',
+                                       'maharashtra', 'gujarat', 'bengal', 'tamil_nadu', 'kerala', 'karnataka',
+                                       'andhra_pradesh', 'rajasthan', 'punjab', 'odisha', 'assam'],
+                               help='Regions to include (default: all_india)')
+    festival_parser.add_argument('--categories', nargs='+', default=['all'],
+                               choices=['all', 'major', 'religious', 'seasonal', 'regional', 'spiritual', 'cultural', 'astronomical'],
+                               help='Festival categories to include (default: all)')
+    festival_parser.add_argument('--export-ical', type=str, help='Export to iCal file (.ics)')
+    festival_parser.add_argument('--export-json', type=str, help='Export to JSON file (.json)')
+    festival_parser.set_defaults(func=cmd_festivals)
     
     args = parser.parse_args()
     

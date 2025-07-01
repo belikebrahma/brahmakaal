@@ -1,14 +1,41 @@
+# Core Dependencies (existing Phase 1 & 2)
+pyephem==9.99
+astropy>=5.3.0
 skyfield>=1.46
-astropy>=5.0
-geographiclib>=2.0
-pyerfa>=2.0.0
-numpy>=1.21.0
-scipy>=1.7.0
-python-dateutil>=2.8.0
-pytest>=7.0.0
-redis>=4.3.0
-fastapi>=0.68.0
-uvicorn>=0.15.0
-pydantic>=1.8.0
-sqlalchemy>=1.4.0
-alembic>=1.7.0
+spiceypy>=6.0.0
+requests>=2.31.0
+geopy>=2.3.0
+python-dateutil>=2.8.2
+
+# Phase 3 Enterprise API Dependencies
+fastapi>=0.104.1
+uvicorn[standard]>=0.24.0
+pydantic[email]>=2.4.2
+pydantic-settings>=2.0.3
+
+# Database (PostgreSQL)
+sqlalchemy[asyncio]>=2.0.23
+asyncpg>=0.29.0
+psycopg2-binary>=2.9.7
+
+# Authentication & Security
+PyJWT>=2.8.0
+passlib[bcrypt]>=1.7.4
+cryptography>=41.0.7
+python-multipart>=0.0.6
+
+# Redis & Caching (Python 3.11 compatible)
+redis>=4.5.0
+
+# HTTP & Networking
+httpx>=0.25.2
+python-jose[cryptography]>=3.3.0
+
+# Production & Monitoring
+prometheus-client>=0.19.0
+python-json-logger>=2.0.7
+
+# Testing & Development
+pytest>=7.4.3
+pytest-asyncio>=0.21.1
+pytest-cov>=4.1.0
