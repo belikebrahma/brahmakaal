@@ -75,12 +75,13 @@ class Settings(BaseSettings):
     request_timeout: int = Field(default=30, env="REQUEST_TIMEOUT")
     
     # Email Configuration (for verification and notifications)
-    email_enabled: bool = Field(default=False, env="EMAIL_ENABLED")
-    smtp_host: Optional[str] = Field(default=None, env="SMTP_HOST")
-    smtp_port: int = Field(default=587, env="SMTP_PORT")
-    smtp_username: Optional[str] = Field(default=None, env="SMTP_USERNAME")
-    smtp_password: Optional[str] = Field(default=None, env="SMTP_PASSWORD")
-    email_from: Optional[str] = Field(default=None, env="EMAIL_FROM")
+    email_enabled: bool = Field(default=True, env="EMAIL_ENABLED")
+    smtp_host: str = Field(default="smtp.zoho.in", env="SMTP_HOST")
+    smtp_port: int = Field(default=465, env="SMTP_PORT")
+    smtp_username: str = Field(default="aham@brah.ma", env="SMTP_USER")
+    smtp_password: str = Field(default="6whrzKc*@brahma", env="SMTP_PASS")
+    smtp_secure: bool = Field(default=True, env="SMTP_SECURE")
+    email_from: str = Field(default="aham@brah.ma", env="EMAIL_FROM")
     
     # Monitoring and Analytics
     analytics_enabled: bool = Field(default=True, env="ANALYTICS_ENABLED")
@@ -88,7 +89,10 @@ class Settings(BaseSettings):
     usage_tracking_enabled: bool = Field(default=True, env="USAGE_TRACKING_ENABLED")
     
     # API Keys and External Services
-    webhook_secret: Optional[str] = Field(default=None, env="WEBHOOK_SECRET")
+    webhook_enabled: bool = Field(default=True, env="WEBHOOK_ENABLED")
+    webhook_secret: str = Field(default="brahmakaal_webhook_secret_2025", env="WEBHOOK_SECRET")
+    webhook_timeout: int = Field(default=30, env="WEBHOOK_TIMEOUT")
+    webhook_max_retries: int = Field(default=3, env="WEBHOOK_MAX_RETRIES")
     
     # Subscription and Billing
     stripe_public_key: Optional[str] = Field(default=None, env="STRIPE_PUBLIC_KEY")

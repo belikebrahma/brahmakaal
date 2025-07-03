@@ -232,7 +232,4 @@ class CacheStatistics(Base):
     __table_args__ = (
         Index('idx_cache_stats_backend', 'cache_backend'),
         Index('idx_cache_stats_timestamp', 'timestamp'),
-    )
-
-# Note: Auth models (User, APIKey, Subscription, UsageLog) are defined 
-# in auth.models module to avoid duplication and circular imports 
+    ) 

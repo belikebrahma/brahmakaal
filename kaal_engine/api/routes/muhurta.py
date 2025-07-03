@@ -17,11 +17,33 @@ from ...core.muhurta import MuhurtaEngine, MuhurtaType
 
 router = APIRouter()
 
+async def get_muhurta_engine():
+    """Dependency to get Muhurta engine with proper kaal_engine initialization"""
+    try:
+        # Get the kaal_engine from the main app
+        from ...api.app import kaal_engine
+        if not kaal_engine:
+            raise HTTPException(
+                status_code=503, 
+                detail="Kaal engine not available for muhurta calculations"
+            )
+        return MuhurtaEngine(kaal_engine)
+    except Exception as e:
+        raise HTTPException(
+            status_code=503, 
+            detail=f"Muhurta engine initialization failed: {str(e)}"
+        )
+
+async def get_cache():
+    """Dependency to get cache"""
+    from ...api.app import cache
+    return cache
+
 @router.post("/muhurta", response_model=MuhurtaResponse)
 async def find_muhurta(
     request: MuhurtaRequest,
-    muhurta_engine: MuhurtaEngine = Depends(lambda: None),  # Will be injected in main app
-    cache = Depends(lambda: None),
+    muhurta_engine: MuhurtaEngine = Depends(get_muhurta_engine),
+    cache = Depends(get_cache),
     db: AsyncSession = Depends(get_db)
 ):
     """
@@ -52,6 +74,18 @@ async def find_muhurta(
     try:
         start_time = time.time()
         
+        # Validate date range
+        if request.start_date >= request.end_date:
+            raise HTTPException(status_code=400, detail="End date must be after start date")
+        
+        # Limit search range to prevent excessive computation
+        max_days = 365
+        if (request.end_date - request.start_date).days > max_days:
+            raise HTTPException(
+                status_code=400, 
+                detail=f"Date range too large. Maximum {max_days} days allowed"
+            )
+        
         # Create cache key
         if cache:
             cache_key = cache.make_key(
@@ -70,34 +104,25 @@ async def find_muhurta(
             if cached_result:
                 return cached_result
         
-        # Validate date range
-        if request.start_date >= request.end_date:
-            raise HTTPException(status_code=400, detail="End date must be after start date")
-        
-        # Limit search range to prevent excessive computation
-        max_days = 365
-        if (request.end_date - request.start_date).days > max_days:
-            raise HTTPException(
-                status_code=400, 
-                detail=f"Date range too large. Maximum {max_days} days allowed"
-            )
-        
         # Create muhurta request for engine
         from ...core.muhurta import MuhurtaRequest as EngineMuhurtaRequest
         
-        engine_request = EngineMuhurtaRequest(
-            muhurta_type=MuhurtaType[request.muhurta_type.value.upper()],
-            start_date=request.start_date,
-            end_date=request.end_date,
-            latitude=request.latitude,
-            longitude=request.longitude,
-            duration_minutes=request.duration_minutes
-        )
+        try:
+            engine_request = EngineMuhurtaRequest(
+                muhurta_type=MuhurtaType[request.muhurta_type.value.upper()],
+                start_date=request.start_date,
+                end_date=request.end_date,
+                latitude=request.latitude,
+                longitude=request.longitude,
+                duration_minutes=request.duration_minutes
+            )
+        except KeyError:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Invalid muhurta type: {request.muhurta_type.value}"
+            )
         
         # Find muhurtas
-        if not muhurta_engine:
-            raise HTTPException(status_code=503, detail="Muhurta engine not available")
-            
         results = muhurta_engine.find_muhurta(engine_request)
         
         # Filter by quality
@@ -198,37 +223,37 @@ async def get_muhurta_types():
         "marriage": {
             "name": "Marriage",
             "description": "Wedding ceremonies with comprehensive traditional rules",
-            "factors": ["Favorable tithis", "Compatible nakshatras", "Auspicious yogas", "Planetary positions"],
-            "duration": "2-4 hours typically"
+            "typical_duration": "2-4 hours",
+            "key_factors": ["tithi", "nakshatra", "vara", "guru_chandal_check"]
         },
         "business": {
             "name": "Business",
-            "description": "New venture launches, important meetings",
-            "factors": ["Growth-oriented tithis", "Prosperity nakshatras", "Jupiter influence"],
-            "duration": "1-2 hours typically"
+            "description": "New venture launches, shop openings, important meetings",
+            "typical_duration": "1-2 hours",
+            "key_factors": ["mercury_strength", "jupiter_position", "lunar_strength"]
         },
         "travel": {
             "name": "Travel", 
-            "description": "Journey commencement times",
-            "factors": ["Mobile nakshatras", "Safe travel yogas", "Directional considerations"],
-            "duration": "15-60 minutes typically"
+            "description": "Journey commencement, pilgrimage start",
+            "typical_duration": "30-60 minutes",
+            "key_factors": ["direction_consideration", "vara", "nakshatra"]
         },
         "education": {
             "name": "Education",
-            "description": "Study initiation, exam scheduling",
-            "factors": ["Knowledge nakshatras", "Mercury strength", "Learning yogas"],
-            "duration": "1-3 hours typically"
+            "description": "Study initiation, exam scheduling, learning commencement", 
+            "typical_duration": "1-2 hours",
+            "key_factors": ["mercury_strength", "jupiter_aspects", "saraswati_yoga"]
         },
         "property": {
             "name": "Property",
-            "description": "Real estate transactions, construction",
-            "factors": ["Fixed nakshatras", "Earth element strength", "Stability yogas"],
-            "duration": "1-2 hours typically"
+            "description": "Real estate transactions, house warming, construction start",
+            "typical_duration": "1-3 hours", 
+            "key_factors": ["mars_position", "venus_aspects", "fourth_house_strength"]
         },
         "general": {
             "name": "General",
-            "description": "Multi-purpose auspicious timings",
-            "factors": ["Overall favorability", "Balanced influences", "General prosperity"],
-            "duration": "1-2 hours typically"
+            "description": "Multi-purpose auspicious timings for any activity",
+            "typical_duration": "1-2 hours",
+            "key_factors": ["basic_panchang", "inauspicious_period_avoidance"]
         }
     } 

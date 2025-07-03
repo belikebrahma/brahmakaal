@@ -24,19 +24,19 @@ def test_comprehensive_panchang():
     print_section("COMPREHENSIVE PANCHANG TEST")
     
     try:
-        # Initialize Kaal with the DE441 kernel
+    # Initialize Kaal with the DE441 kernel
         kaal = Kaal("de421.bsp")
-        
-        # Test with Ujjain coordinates for Mahashivaratri 2025
+    
+    # Test with Ujjain coordinates for Mahashivaratri 2025
         dt = datetime(2025, 2, 26, 12, 0, 0, tzinfo=timezone.utc)
-        result = kaal.get_panchang(
-            lat=23.1765,
-            lon=75.7885,
-            dt=dt,
+    result = kaal.get_panchang(
+        lat=23.1765,
+        lon=75.7885,
+        dt=dt,
             elevation=491.0,  # Ujjain elevation
             ayanamsha="LAHIRI"
-        )
-        
+    )
+    
         print("Panchang Results for Mahashivaratri 2025 (Ujjain):")
         print_dict(result)
         

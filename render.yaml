@@ -1,0 +1,56 @@
+{
+  "services": [
+    {
+      "type": "web",
+      "name": "brahmakaal-api",
+      "env": "python",
+      "plan": "free",
+      "buildCommand": "pip install -r requirements.txt",
+      "startCommand": "python start_api.py",
+      "envVars": [
+        {
+          "key": "PORT",
+          "value": "8000"
+        },
+        {
+          "key": "ENVIRONMENT",
+          "value": "production"
+        },
+        {
+          "key": "JWT_SECRET_KEY",
+          "value": "your-super-secret-jwt-key-change-this"
+        },
+        {
+          "key": "EMAIL_ENABLED",
+          "value": "true"
+        },
+        {
+          "key": "SMTP_HOST",
+          "value": "smtp.zoho.in"
+        },
+        {
+          "key": "SMTP_PORT",
+          "value": "465"
+        },
+        {
+          "key": "SMTP_USER",
+          "value": "aham@brah.ma"
+        },
+        {
+          "key": "SMTP_PASS",
+          "value": "6whrzKc*@brahma"
+        },
+        {
+          "key": "WEBHOOK_ENABLED",
+          "value": "true"
+        }
+      ]
+    }
+  ],
+  "databases": [
+    {
+      "name": "brahmakaal-postgres",
+      "plan": "free"
+    }
+  ]
+}

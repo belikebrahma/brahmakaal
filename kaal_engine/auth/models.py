@@ -355,4 +355,72 @@ SUBSCRIPTION_LIMITS = {
         },
         "price": 299.0
     }
-} 
+}
+
+# Webhook Models
+class WebhookEndpoint(Base):
+    """Customer webhook endpoint configuration"""
+    __tablename__ = "webhook_endpoints"
+    
+    id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
+    user_id = Column(String, ForeignKey("users.id"), nullable=False, index=True)
+    url = Column(String, nullable=False)
+    secret = Column(String, nullable=True)  # HMAC secret
+    events = Column(JSON, default=list)  # List of subscribed events
+    is_active = Column(Boolean, default=True)
+    created_at = Column(SQLDateTime, default=DateTime.utcnow)
+    updated_at = Column(SQLDateTime, default=DateTime.utcnow, onupdate=DateTime.utcnow)
+    last_delivery = Column(SQLDateTime, nullable=True)
+    failure_count = Column(Integer, default=0)
+    
+    # Delivery settings
+    timeout_seconds = Column(Integer, default=30)
+    retry_attempts = Column(Integer, default=3)
+
+class WebhookDelivery(Base):
+    """Webhook delivery attempt log"""
+    __tablename__ = "webhook_deliveries"
+    
+    id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
+    endpoint_id = Column(String, nullable=False, index=True)
+    event_type = Column(String, nullable=False)
+    payload = Column(JSON, nullable=False)
+    status = Column(String, default="pending")  # pending, delivered, failed, retrying
+    
+    # Delivery details
+    http_status = Column(Integer, nullable=True)
+    response_body = Column(Text, nullable=True)
+    error_message = Column(Text, nullable=True)
+    delivery_time = Column(SQLDateTime, nullable=True)
+    retry_count = Column(Integer, default=0)
+    
+    # Timestamps
+    created_at = Column(SQLDateTime, default=DateTime.utcnow)
+    next_retry = Column(SQLDateTime, nullable=True)
+
+# Email Verification Models
+class EmailVerification(Base):
+    """Email verification tokens"""
+    __tablename__ = "email_verifications"
+    
+    id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
+    user_id = Column(String, ForeignKey("users.id"), nullable=False, index=True)
+    token = Column(String, unique=True, nullable=False, index=True)
+    email = Column(String, nullable=False)
+    verified = Column(Boolean, default=False)
+    created_at = Column(SQLDateTime, default=DateTime.utcnow)
+    verified_at = Column(SQLDateTime, nullable=True)
+    expires_at = Column(SQLDateTime, nullable=False)
+
+class PasswordReset(Base):
+    """Password reset tokens"""
+    __tablename__ = "password_resets"
+    
+    id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
+    user_id = Column(String, ForeignKey("users.id"), nullable=False, index=True)
+    token = Column(String, unique=True, nullable=False, index=True)
+    email = Column(String, nullable=False)
+    used = Column(Boolean, default=False)
+    created_at = Column(SQLDateTime, default=DateTime.utcnow)
+    used_at = Column(SQLDateTime, nullable=True)
+    expires_at = Column(SQLDateTime, nullable=False) 

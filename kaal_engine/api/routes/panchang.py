@@ -17,11 +17,69 @@ from ...kaal import Kaal
 
 router = APIRouter()
 
+def parse_time_string(time_str: str) -> str:
+    """Parse and validate time string format"""
+    if not time_str:
+        return "12:00:00"
+    
+    # Handle common time formats
+    time_str = time_str.strip()
+    
+    # If it's just "string" or invalid, return default
+    if time_str.lower() in ["string", "null", "none", ""]:
+        return "12:00:00"
+    
+    # Try different time formats
+    formats = [
+        "%H:%M:%S",    # 14:30:00
+        "%H:%M",       # 14:30
+        "%I:%M:%S %p", # 2:30:00 PM
+        "%I:%M %p",    # 2:30 PM
+    ]
+    
+    for fmt in formats:
+        try:
+            parsed_time = datetime.strptime(time_str, fmt).time()
+            return parsed_time.strftime("%H:%M:%S")
+        except ValueError:
+            continue
+    
+    # If all parsing fails, return default
+    return "12:00:00"
+
+def parse_date_string(date_str: str) -> date:
+    """Parse and validate date string format"""
+    if not date_str:
+        return date.today()
+    
+    try:
+        return datetime.strptime(date_str, "%Y-%m-%d").date()
+    except ValueError:
+        try:
+            return datetime.strptime(date_str, "%Y/%m/%d").date()
+        except ValueError:
+            return date.today()
+
+async def get_kaal_engine():
+    """Dependency to get Kaal engine"""
+    from ...api.app import kaal_engine
+    if not kaal_engine:
+        raise HTTPException(
+            status_code=503, 
+            detail="Kaal engine not available. Please try again later."
+        )
+    return kaal_engine
+
+async def get_cache():
+    """Dependency to get cache"""
+    from ...api.app import cache
+    return cache
+
 @router.post("/panchang", response_model=PanchangResponse)
 async def calculate_panchang(
     request: PanchangRequest,
-    kaal_engine: Kaal = Depends(lambda: None),  # Will be injected in main app
-    cache = Depends(lambda: None),
+    kaal_engine: Kaal = Depends(get_kaal_engine),
+    cache = Depends(get_cache),
     db: AsyncSession = Depends(get_db)
 ):
     """
@@ -44,6 +102,9 @@ async def calculate_panchang(
     try:
         start_time = time.time()
         
+        # Validate and parse time
+        time_str = parse_time_string(request.time) if request.time else "12:00:00"
+        
         # Create cache key
         if cache:
             cache_key = cache.make_key(
@@ -51,7 +112,7 @@ async def calculate_panchang(
                 request.latitude,
                 request.longitude, 
                 request.date,
-                request.time or "12:00:00",
+                time_str,
                 request.ayanamsha.value,
                 request.elevation
             )
@@ -61,12 +122,15 @@ async def calculate_panchang(
             if cached_result:
                 return cached_result
         
-        # Parse datetime
-        if request.time:
-            dt_str = f"{request.date} {request.time}"
+        # Parse datetime with validated time
+        try:
+            dt_str = f"{request.date} {time_str}"
             dt = datetime.strptime(dt_str, "%Y-%m-%d %H:%M:%S")
-        else:
-            dt = datetime.combine(request.date, datetime.min.time().replace(hour=12))
+        except ValueError as e:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Invalid date/time format. Expected YYYY-MM-DD for date and HH:MM:SS for time. Error: {str(e)}"
+            )
         
         # Add timezone
         dt = dt.replace(tzinfo=timezone.utc)
@@ -75,9 +139,6 @@ async def calculate_panchang(
             dt = dt - timedelta(hours=request.timezone_offset)
         
         # Calculate panchang
-        if not kaal_engine:
-            raise HTTPException(status_code=503, detail="Kaal engine not available")
-            
         panchang_data = kaal_engine.get_panchang(
             lat=request.latitude,
             lon=request.longitude,
@@ -204,6 +265,9 @@ async def calculate_panchang(
         
         return response
         
+    except HTTPException:
+        # Re-raise HTTP exceptions (like validation errors)
+        raise
     except Exception as e:
         raise HTTPException(
             status_code=500,
@@ -212,15 +276,15 @@ async def calculate_panchang(
 
 @router.get("/panchang", response_model=PanchangResponse) 
 async def get_panchang(
-    lat: float = Query(..., ge=-90, le=90, description="Latitude in degrees"),
-    lon: float = Query(..., ge=-180, le=180, description="Longitude in degrees"),
+    latitude: float = Query(..., ge=-90, le=90, description="Latitude in degrees"),
+    longitude: float = Query(..., ge=-180, le=180, description="Longitude in degrees"),
     date: Optional[str] = Query(None, description="Date in YYYY-MM-DD format (default: today)"),
-    time: Optional[str] = Query(None, description="Time in HH:MM:SS format (default: 12:00:00)"),
+    time: Optional[str] = Query("12:00:00", description="Time in HH:MM:SS format (default: 12:00:00)"),
     elevation: float = Query(0.0, ge=-1000, le=10000, description="Elevation in meters"),
     ayanamsha: str = Query("LAHIRI", description="Ayanamsha system"),
     timezone_offset: float = Query(0.0, ge=-12, le=12, description="Timezone offset in hours"),
-    kaal_engine: Kaal = Depends(lambda: None),
-    cache = Depends(lambda: None),
+    kaal_engine: Kaal = Depends(get_kaal_engine),
+    cache = Depends(get_cache),
     db: AsyncSession = Depends(get_db)
 ):
     """
@@ -228,26 +292,42 @@ async def get_panchang(
     
     Convenient GET interface for simple panchang requests.
     For advanced options, use the POST endpoint.
+    
+    **Example:** `/v1/panchang?latitude=23.5&longitude=77.5&date=2025-07-02&time=14:30:00`
     """
-    # Convert to PanchangRequest
-    from ..models import AyanamshaSystem
-    
-    if date is None:
-        calc_date = date.today()
-    else:
-        calc_date = datetime.strptime(date, "%Y-%m-%d").date()
-    
-    # Map string to enum
-    ayanamsha_enum = getattr(AyanamshaSystem, ayanamsha, AyanamshaSystem.LAHIRI)
-    
-    request = PanchangRequest(
-        latitude=lat,
-        longitude=lon,
-        date=calc_date,
-        time=time,
-        elevation=elevation,
-        ayanamsha=ayanamsha_enum,
-        timezone_offset=timezone_offset
-    )
-    
-    return await calculate_panchang(request, kaal_engine, cache, db) 
+    try:
+        # Convert to PanchangRequest
+        from ..models import AyanamshaSystem
+        
+        # Parse date
+        if date is None:
+            calc_date = date.today()
+        else:
+            calc_date = parse_date_string(date)
+        
+        # Parse and validate time
+        validated_time = parse_time_string(time)
+        
+        # Map string to enum
+        try:
+            ayanamsha_enum = getattr(AyanamshaSystem, ayanamsha.upper(), AyanamshaSystem.LAHIRI)
+        except:
+            ayanamsha_enum = AyanamshaSystem.LAHIRI
+        
+        request = PanchangRequest(
+            latitude=latitude,
+            longitude=longitude,
+            date=calc_date,
+            time=validated_time,
+            elevation=elevation,
+            ayanamsha=ayanamsha_enum,
+            timezone_offset=timezone_offset
+        )
+        
+        return await calculate_panchang(request, kaal_engine, cache, db)
+        
+    except Exception as e:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid request parameters: {str(e)}"
+        ) 

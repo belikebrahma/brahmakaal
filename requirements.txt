@@ -31,6 +31,9 @@ redis>=4.5.0
 httpx>=0.25.2
 python-jose[cryptography]>=3.3.0
 
+# Email & Templates
+Jinja2>=3.1.2
+
 # Production & Monitoring
 prometheus-client>=0.19.0
 python-json-logger>=2.0.7

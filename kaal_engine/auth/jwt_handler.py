@@ -21,11 +21,14 @@ class JWTHandler:
         self.refresh_token_expire_days = settings.jwt_refresh_token_expire_days
         self.pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
     
-    def create_access_token(self, data: Dict[str, Any], expires_delta: Optional[timedelta] = None) -> str:
-        """Create a new access token"""
+    def create_access_token(self, data: Dict[str, Any], expires_delta: Optional[timedelta] = None, never_expires: bool = False) -> str:
+        """Create a new access token with optional never-expiring functionality"""
         to_encode = data.copy()
         
-        if expires_delta:
+        if never_expires:
+            # Create token that expires in 100 years (practically never expires)
+            expire = datetime.now(timezone.utc) + timedelta(days=36500)
+        elif expires_delta:
             expire = datetime.now(timezone.utc) + expires_delta
         else:
             expire = datetime.now(timezone.utc) + timedelta(minutes=self.access_token_expire_minutes)
@@ -33,7 +36,8 @@ class JWTHandler:
         to_encode.update({
             "exp": expire,
             "iat": datetime.now(timezone.utc),
-            "type": "access"
+            "type": "access",
+            "never_expires": never_expires
         })
         
         encoded_jwt = jwt.encode(to_encode, self.secret_key, algorithm=self.algorithm)
@@ -62,16 +66,20 @@ class JWTHandler:
             if payload.get("type") != token_type:
                 return None
             
-            # Check expiration
-            exp = payload.get("exp")
-            if exp and datetime.fromtimestamp(exp, timezone.utc) < datetime.now(timezone.utc):
-                return None
+            # Check expiration (skip for never-expiring tokens)
+            if not payload.get("never_expires", False):
+                exp = payload.get("exp")
+                if exp and datetime.fromtimestamp(exp, timezone.utc) < datetime.now(timezone.utc):
+                    return None
             
             return payload
             
         except jwt.ExpiredSignatureError:
             return None
-        except jwt.JWTError:
+        except jwt.InvalidTokenError:
+            return None
+        except Exception:
+            # Catch any other JWT-related exceptions
             return None
     
     def get_user_id_from_token(self, token: str) -> Optional[str]:
@@ -89,7 +97,7 @@ class JWTHandler:
         """Verify a password against its hash"""
         return self.pwd_context.verify(plain_password, hashed_password)
     
-    def create_user_tokens(self, user_id: str, email: str, role: str = "user") -> Dict[str, Any]:
+    def create_user_tokens(self, user_id: str, email: str, role: str = "user", never_expires: bool = False) -> Dict[str, Any]:
         """Create both access and refresh tokens for a user"""
         token_data = {
             "sub": user_id,
@@ -97,15 +105,26 @@ class JWTHandler:
             "role": role
         }
         
-        access_token = self.create_access_token(token_data)
+        access_token = self.create_access_token(token_data, never_expires=never_expires)
         refresh_token = self.create_refresh_token({"sub": user_id})
         
         return {
             "access_token": access_token,
             "refresh_token": refresh_token,
             "token_type": "bearer",
-            "expires_in": self.access_token_expire_minutes * 60
+            "expires_in": None if never_expires else (self.access_token_expire_minutes * 60),
+            "never_expires": never_expires
         }
+    
+    def create_never_expiring_token(self, user_id: str, email: str, role: str = "user") -> str:
+        """Create a never-expiring access token for testing/admin purposes"""
+        token_data = {
+            "sub": user_id,
+            "email": email,
+            "role": role
+        }
+        
+        return self.create_access_token(token_data, never_expires=True)
     
     def refresh_access_token(self, refresh_token: str, user_data: Dict[str, Any]) -> Optional[str]:
         """Create new access token from refresh token"""

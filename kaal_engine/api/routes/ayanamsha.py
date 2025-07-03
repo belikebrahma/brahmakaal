@@ -1,6 +1,6 @@
 """
-Ayanamsha Calculation Endpoints
-Traditional astronomical reference system calculations
+Ayanamsha Calculation Endpoints  
+Multiple traditional astronomical reference systems
 """
 
 import time
@@ -17,38 +17,50 @@ from ...core.ayanamsha import AyanamshaEngine
 
 router = APIRouter()
 
+async def get_ayanamsha_engine():
+    """Dependency to get Ayanamsha engine"""
+    try:
+        return AyanamshaEngine()
+    except Exception as e:
+        raise HTTPException(
+            status_code=503, 
+            detail="Ayanamsha engine not available. Please try again later."
+        )
+
+async def get_cache():
+    """Dependency to get cache"""
+    from ...api.app import cache
+    return cache
+
 @router.get("/ayanamsha", response_model=AyanamshaComparisonResponse)
 async def compare_ayanamsha(
     date: Optional[str] = Query(None, description="Date in YYYY-MM-DD format (default: today)"),
-    ayanamsha_engine: AyanamshaEngine = Depends(lambda: None),  # Will be injected in main app
-    cache = Depends(lambda: None),
+    ayanamsha_engine: AyanamshaEngine = Depends(get_ayanamsha_engine),
+    cache = Depends(get_cache),
     db: AsyncSession = Depends(get_db)
 ):
     """
     Compare all supported ayanamsha systems for a given date
     
-    **Ayanamsha Systems Supported:**
-    - **Lahiri**: Official Indian government standard (most widely used)
-    - **Raman**: B.V. Raman's system, popular in South India
-    - **Krishnamurti**: K.S. Krishnamurti's system for KP astrology
-    - **Yukteshwar**: Sri Yukteshwar's calculation from 'Holy Science'
-    - **Suryasiddhanta**: Classical text-based calculation
-    - **Fagan-Bradley**: Western sidereal astrology standard
-    - **DeLuce**: Robert DeLuce's system
-    - **Pushya Paksha**: Traditional calculation method
+    **Supported Ayanamsha Systems (10 types):**
+    - **Lahiri (Chitrapaksha)**: Government of India standard
+    - **Raman**: B.V. Raman's system
+    - **Krishnamurti (KP)**: K.S. Krishnamurti's system  
+    - **Yukteshwar**: Swami Sri Yukteshwar's calculations
+    - **Suryasiddhanta**: Classical Surya Siddhanta method
+    - **Fagan-Bradley**: Western sidereal standard
+    - **De Luce**: Cyril Fagan and Donald Bradley system
+    - **Pushya Paksha**: Ancient nakshatra-based system
     - **Galactic Center**: Modern astronomical alignment
-    - **True Citra**: Star-based traditional calculation
+    - **True Citra**: Spica star-based calculations
     
-    **Returns:**
-    - All ayanamsha values in degrees for the date
-    - Differences from Lahiri system (reference)
-    - System descriptions and historical context
-    - Julian day calculation for astronomical reference
+    **Applications:**
+    - Horoscope calculations and chart rectification
+    - Planetary position accuracy verification  
+    - Historical astronomical research
+    - Comparative astrological analysis
     
-    **Perfect for:**
-    - Astrological software requiring multiple systems
-    - Academic research and comparison studies
-    - Understanding calculation differences between traditions
+    **Example:** `/v1/ayanamsha?date=2025-07-02`
     """
     try:
         start_time = time.time()
@@ -57,7 +69,20 @@ async def compare_ayanamsha(
         if date is None:
             calc_date = date.today()
         else:
-            calc_date = datetime.strptime(date, "%Y-%m-%d").date()
+            try:
+                calc_date = datetime.strptime(date, "%Y-%m-%d").date()
+            except ValueError:
+                raise HTTPException(
+                    status_code=400,
+                    detail="Invalid date format. Use YYYY-MM-DD"
+                )
+        
+        # Validate date range
+        if calc_date.year < 1900 or calc_date.year > 2100:
+            raise HTTPException(
+                status_code=400, 
+                detail="Date must be between 1900 and 2100"
+            )
         
         # Create cache key
         if cache:
@@ -75,9 +100,6 @@ async def compare_ayanamsha(
         julian_day = t.tt
         
         # Calculate all ayanamsha values
-        if not ayanamsha_engine:
-            raise HTTPException(status_code=503, detail="Ayanamsha engine not available")
-        
         ayanamsha_values = ayanamsha_engine.compare_all_systems(julian_day)
         
         # Calculate differences from Lahiri (reference system)
@@ -150,77 +172,27 @@ async def compare_ayanamsha(
 @router.get("/ayanamsha/systems", response_model=dict)
 async def get_ayanamsha_systems():
     """
-    Get information about all supported ayanamsha systems
+    Get available ayanamsha systems with descriptions
     """
     return {
-        "LAHIRI": {
-            "name": "Lahiri (Chitrapaksha)",
-            "description": "Official Indian government standard, most widely used",
-            "year_established": "1955",
-            "authority": "Government of India",
-            "usage": "Official calendars, most astrology software"
+        "systems": {
+            "LAHIRI": "Lahiri (Chitrapaksha) - Government of India standard",
+            "RAMAN": "B.V. Raman's system",
+            "KRISHNAMURTI": "K.S. Krishnamurti's system",
+            "YUKTESHWAR": "Swami Sri Yukteshwar's calculations",
+            "SURYASIDDHANTA": "Classical Surya Siddhanta method",
+            "FAGAN_BRADLEY": "Western sidereal standard",
+            "DELUCE": "Cyril Fagan and Donald Bradley system",
+            "PUSHYA_PAKSHA": "Ancient nakshatra-based system",
+            "GALACTIC_CENTER": "Modern astronomical alignment",
+            "TRUE_CITRA": "Spica star-based calculations"
         },
-        "RAMAN": {
-            "name": "B.V. Raman",
-            "description": "Popular system in South Indian astrology",
-            "year_established": "1920s",
-            "authority": "B.V. Raman",
-            "usage": "South Indian astrologers, classical texts"
-        },
-        "KRISHNAMURTI": {
-            "name": "Krishnamurti Paddhati (KP)",
-            "description": "System for KP astrology method",
-            "year_established": "1960s", 
-            "authority": "K.S. Krishnamurti",
-            "usage": "KP astrology practitioners"
-        },
-        "YUKTESHWAR": {
-            "name": "Sri Yukteshwar",
-            "description": "Calculation from 'The Holy Science'",
-            "year_established": "1894",
-            "authority": "Sri Yukteshwar Giri",
-            "usage": "Kriya Yoga tradition, spiritual astrology"
-        },
-        "SURYASIDDHANTA": {
-            "name": "Surya Siddhanta",
-            "description": "Ancient Sanskrit astronomical text",
-            "year_established": "~400 CE",
-            "authority": "Classical Sanskrit texts",
-            "usage": "Traditional calculations, historical research"
-        },
-        "FAGAN_BRADLEY": {
-            "name": "Fagan-Bradley",
-            "description": "Western sidereal astrology standard",
-            "year_established": "1950s",
-            "authority": "Cyril Fagan & Donald Bradley",
-            "usage": "Western sidereal astrologers"
-        },
-        "DELUCE": {
-            "name": "Robert DeLuce",
-            "description": "Alternative Western sidereal system",
-            "year_established": "1960s",
-            "authority": "Robert DeLuce", 
-            "usage": "Some Western sidereal schools"
-        },
-        "PUSHYA_PAKSHA": {
-            "name": "Pushya Paksha",
-            "description": "Traditional nakshatra-based calculation",
-            "year_established": "Ancient",
-            "authority": "Traditional texts",
-            "usage": "Orthodox traditional astrology"
-        },
-        "GALACTIC_CENTER": {
-            "name": "Galactic Center",
-            "description": "Modern astronomical alignment",
-            "year_established": "Modern",
-            "authority": "Astronomical observation",
-            "usage": "Modern astronomical astrology"
-        },
-        "TRUE_CITRA": {
-            "name": "True Chitra (Spica)",
-            "description": "Star-based traditional calculation",
-            "year_established": "Ancient",
-            "authority": "Stellar observation",
-            "usage": "Star-based traditional systems"
+        "default": "LAHIRI",
+        "most_popular": ["LAHIRI", "RAMAN", "KRISHNAMURTI"],
+        "applications": {
+            "vedic_astrology": ["LAHIRI", "RAMAN", "KRISHNAMURTI"],
+            "western_sidereal": ["FAGAN_BRADLEY", "DELUCE"],
+            "research": ["YUKTESHWAR", "SURYASIDDHANTA", "TRUE_CITRA"],
+            "modern": ["GALACTIC_CENTER"]
         }
     } 

@@ -33,7 +33,7 @@ from ..auth.auth_middleware import AuthMiddleware
 from ..auth.models import User, UsageLog, SubscriptionTier
 
 # API routes
-from .routes import health, panchang, ayanamsha, festivals, muhurta, auth, analytics
+from .routes import health, panchang, ayanamsha, festivals, muhurta, auth, analytics, webhooks
 
 settings = get_settings()
 
@@ -353,14 +353,15 @@ async def get_cache():
     """Get cache instance"""
     return cache
 
-# Include API routes with dependency overrides
+# Register API routes with version prefix
 app.include_router(health.router, prefix="/v1")
 app.include_router(auth.router, prefix="/v1")
 app.include_router(panchang.router, prefix="/v1")
-app.include_router(ayanamsha.router, prefix="/v1")
 app.include_router(festivals.router, prefix="/v1")
+app.include_router(ayanamsha.router, prefix="/v1")
 app.include_router(muhurta.router, prefix="/v1")
 app.include_router(analytics.router, prefix="/v1")
+app.include_router(webhooks.router, prefix="/v1")
 
 # Override dependencies
 app.dependency_overrides[get_kaal_engine] = lambda: kaal_engine

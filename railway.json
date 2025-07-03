@@ -1,0 +1,23 @@
+{
+  "name": "brahmakaal-api",
+  "description": "Vedic Astronomy Enterprise API",
+  "build": {
+    "buildCommand": "pip install -r requirements.txt",
+    "startCommand": "python start_api.py"
+  },
+  "env": {
+    "PORT": "8000",
+    "ENVIRONMENT": "production",
+    "DATABASE_URL": "${{Postgres.DATABASE_URL}}",
+    "JWT_SECRET_KEY": "your-super-secret-jwt-key-change-this-in-production",
+    "EMAIL_ENABLED": "true",
+    "SMTP_HOST": "smtp.zoho.in",
+    "SMTP_PORT": "465",
+    "SMTP_USER": "aham@brah.ma",
+    "SMTP_PASS": "6whrzKc*@brahma",
+    "SMTP_SECURE": "true",
+    "EMAIL_FROM": "aham@brah.ma",
+    "WEBHOOK_ENABLED": "true",
+    "CORS_ORIGINS": "*"
+  }
+}

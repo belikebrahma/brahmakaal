@@ -148,9 +148,7 @@ async def get_user_subscription(
     
     return subscription
 
-async def require_subscription(
-    min_tier: SubscriptionTier = SubscriptionTier.FREE
-) -> User:
+def require_subscription(min_tier: SubscriptionTier = SubscriptionTier.FREE):
     """Require specific subscription tier"""
     async def _require_subscription(
         current_user: User = Depends(require_auth),

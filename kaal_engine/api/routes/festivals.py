@@ -17,11 +17,33 @@ from ...core.festivals import FestivalEngine
 
 router = APIRouter()
 
+async def get_festival_engine():
+    """Dependency to get Festival engine with proper kaal_engine initialization"""
+    try:
+        # Get the kaal_engine from the main app
+        from ...api.app import kaal_engine
+        if not kaal_engine:
+            raise HTTPException(
+                status_code=503, 
+                detail="Kaal engine not available for festival calculations"
+            )
+        return FestivalEngine(kaal_engine)
+    except Exception as e:
+        raise HTTPException(
+            status_code=503, 
+            detail=f"Festival engine initialization failed: {str(e)}"
+        )
+
+async def get_cache():
+    """Dependency to get cache"""
+    from ...api.app import cache
+    return cache
+
 @router.post("/festivals", response_model=FestivalResponse)
 async def get_festivals(
     request: FestivalRequest,
-    festival_engine: FestivalEngine = Depends(lambda: None),  # Will be injected in main app
-    cache = Depends(lambda: None),
+    festival_engine: FestivalEngine = Depends(get_festival_engine),
+    cache = Depends(get_cache),
     db: AsyncSession = Depends(get_db)
 ):
     """
@@ -48,6 +70,10 @@ async def get_festivals(
     try:
         start_time = time.time()
         
+        # Validate year
+        if request.year < 1900 or request.year > 2100:
+            raise HTTPException(status_code=400, detail="Year must be between 1900 and 2100")
+        
         # Create cache key
         if cache:
             regions_str = ",".join([r.value for r in request.regions])
@@ -66,26 +92,25 @@ async def get_festivals(
             if cached_result:
                 return cached_result
         
-        # Validate year
-        if request.year < 1900 or request.year > 2100:
-            raise HTTPException(status_code=400, detail="Year must be between 1900 and 2100")
-        
         # Convert API regions to engine regions
         from ...core.festivals import Region as EngineRegion
         engine_regions = []
         for region in request.regions:
-            engine_regions.append(EngineRegion[region.value.upper()])
+            try:
+                engine_regions.append(EngineRegion[region.value.upper()])
+            except KeyError:
+                engine_regions.append(EngineRegion.ALL_INDIA)
         
         # Convert API categories to engine categories  
         from ...core.festivals import FestivalCategory as EngineCategory
         engine_categories = []
         for category in request.categories:
-            engine_categories.append(EngineCategory[category.value.upper()])
+            try:
+                engine_categories.append(EngineCategory[category.value.upper()])
+            except KeyError:
+                engine_categories.append(EngineCategory.MAJOR)
         
         # Get festivals from engine
-        if not festival_engine:
-            raise HTTPException(status_code=503, detail="Festival engine not available")
-            
         festivals = festival_engine.calculate_festival_dates(
             year=request.year,
             regions=engine_regions,
@@ -100,15 +125,15 @@ async def get_festivals(
         api_festivals = []
         for festival in festivals:
             api_festival = FestivalData(
-                name=festival.name,
-                english_name=festival.english_name,
+                name=festival.festival_rule.name,
+                english_name=festival.festival_rule.english_name,
                 date=festival.date,
-                category=festival.category.value,
-                regions=[r.value for r in festival.regions],
-                description=festival.description,
-                alternative_names=festival.alternative_names,
-                duration_days=festival.duration_days,
-                observance_time=festival.observance_time
+                category=festival.festival_rule.category.value,
+                regions=[r.value for r in festival.festival_rule.regions],
+                description=festival.festival_rule.description,
+                alternative_names=festival.festival_rule.alternative_names,
+                duration_days=festival.festival_rule.duration_days,
+                observance_time=festival.festival_rule.observance_time
             )
             api_festivals.append(api_festival)
         
@@ -119,12 +144,12 @@ async def get_festivals(
         export_url = None
         if request.export_format == "ical":
             # Generate iCal data
-            ical_data = festival_engine.export_ical(festivals, request.year)
+            ical_data = festival_engine.export_to_ical(festivals)
             # In production, this would be stored and a URL returned
             export_url = f"/v1/festivals/export/{request.year}.ics"
         elif request.export_format == "csv":
             # Generate CSV data  
-            csv_data = festival_engine.export_csv(festivals)
+            csv_data = festival_engine.export_to_json(festivals)  # Using JSON export for now
             export_url = f"/v1/festivals/export/{request.year}.csv"
         
         # Calculate processing time
@@ -186,8 +211,8 @@ async def get_festivals_simple(
     regions: str = Query("all_india", description="Comma-separated regions"),
     categories: str = Query("major", description="Comma-separated categories"),
     export_format: str = Query("json", description="Export format: json, ical, csv"),
-    festival_engine: FestivalEngine = Depends(lambda: None),
-    cache = Depends(lambda: None),
+    festival_engine: FestivalEngine = Depends(get_festival_engine),
+    cache = Depends(get_cache),
     db: AsyncSession = Depends(get_db)
 ):
     """
@@ -195,35 +220,44 @@ async def get_festivals_simple(
     
     Convenient GET interface for simple festival requests.
     For advanced options, use the POST endpoint.
+    
+    **Example:** `/v1/festivals?year=2025&month=7&regions=all_india&categories=major`
     """
-    # Parse regions
-    region_list = [Region.ALL_INDIA]
-    if regions != "all_india":
-        try:
-            region_names = regions.split(",")
-            region_list = [Region[name.strip().upper()] for name in region_names]
-        except KeyError as e:
-            raise HTTPException(status_code=400, detail=f"Invalid region: {e}")
-    
-    # Parse categories
-    category_list = [FestivalCategory.MAJOR]
-    if categories != "major":
-        try:
-            category_names = categories.split(",")
-            category_list = [FestivalCategory[name.strip().upper()] for name in category_names]
-        except KeyError as e:
-            raise HTTPException(status_code=400, detail=f"Invalid category: {e}")
-    
-    # Create request
-    request = FestivalRequest(
-        year=year,
-        month=month,
-        regions=region_list,
-        categories=category_list,
-        export_format=export_format
-    )
-    
-    return await get_festivals(request, festival_engine, cache, db)
+    try:
+        # Parse regions
+        region_list = []
+        for region_str in regions.split(","):
+            region_str = region_str.strip().upper()
+            try:
+                region_list.append(Region[region_str])
+            except KeyError:
+                region_list.append(Region.ALL_INDIA)
+        
+        # Parse categories
+        category_list = []
+        for category_str in categories.split(","):
+            category_str = category_str.strip().upper()
+            try:
+                category_list.append(FestivalCategory[category_str])
+            except KeyError:
+                category_list.append(FestivalCategory.MAJOR)
+        
+        # Create request object
+        request = FestivalRequest(
+            year=year,
+            month=month,
+            regions=region_list,
+            categories=category_list,
+            export_format=export_format
+        )
+        
+        return await get_festivals(request, festival_engine, cache, db)
+        
+    except Exception as e:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid request parameters: {str(e)}"
+        )
 
 @router.get("/festivals/regions", response_model=dict)
 async def get_regions():
@@ -231,22 +265,26 @@ async def get_regions():
     Get available regions with descriptions
     """
     return {
-        "all_india": "Pan-Indian festivals celebrated nationwide",
-        "north_india": "Northern Indian regional festivals",
-        "south_india": "Southern Indian regional festivals", 
-        "west_india": "Western Indian regional festivals",
-        "east_india": "Eastern Indian regional festivals",
-        "maharashtra": "Maharashtra state festivals",
-        "gujarat": "Gujarat state festivals",
-        "bengal": "Bengal region festivals (West Bengal & Bangladesh)",
-        "tamil_nadu": "Tamil Nadu state festivals",
-        "kerala": "Kerala state festivals",
-        "karnataka": "Karnataka state festivals",
-        "andhra_pradesh": "Andhra Pradesh & Telangana festivals",
-        "rajasthan": "Rajasthan state festivals",
-        "punjab": "Punjab region festivals",
-        "odisha": "Odisha state festivals",
-        "assam": "Assam & Northeast festivals"
+        "regions": {
+            "ALL_INDIA": "Pan-Indian festivals celebrated across the country",
+            "NORTH_INDIA": "North Indian regional festivals",
+            "SOUTH_INDIA": "South Indian regional festivals", 
+            "WEST_INDIA": "Western Indian regional festivals",
+            "EAST_INDIA": "Eastern Indian regional festivals",
+            "MAHARASHTRA": "Maharashtra state festivals",
+            "GUJARAT": "Gujarat state festivals",
+            "BENGAL": "Bengal regional festivals",
+            "TAMIL_NADU": "Tamil Nadu state festivals",
+            "KERALA": "Kerala state festivals",
+            "KARNATAKA": "Karnataka state festivals",
+            "ANDHRA_PRADESH": "Andhra Pradesh state festivals",
+            "RAJASTHAN": "Rajasthan state festivals",
+            "PUNJAB": "Punjab state festivals",
+            "ODISHA": "Odisha state festivals",
+            "ASSAM": "Assam state festivals"
+        },
+        "default": "ALL_INDIA",
+        "most_popular": ["ALL_INDIA", "NORTH_INDIA", "SOUTH_INDIA", "MAHARASHTRA", "GUJARAT"]
     }
 
 @router.get("/festivals/categories", response_model=dict)
@@ -255,11 +293,15 @@ async def get_categories():
     Get available festival categories with descriptions
     """
     return {
-        "major": "Primary festivals celebrated across India",
-        "religious": "Deity-specific religious observances",
-        "seasonal": "Harvest and seasonal celebrations",
-        "regional": "Location-specific cultural festivals",
-        "spiritual": "Spiritual observance days and fasting",
-        "cultural": "Traditional cultural celebrations",
-        "astronomical": "Eclipse days, solstices, astronomical events"
+        "categories": {
+            "MAJOR": "Major festivals celebrated across India (Diwali, Holi, etc.)",
+            "RELIGIOUS": "Deity-specific religious observances",
+            "SEASONAL": "Harvest and seasonal celebrations",
+            "REGIONAL": "Location-specific cultural festivals",
+            "SPIRITUAL": "Spiritual observances (Ekadashi, Pradosh, etc.)",
+            "CULTURAL": "Traditional cultural celebrations",
+            "ASTRONOMICAL": "Astronomical events and eclipse days"
+        },
+        "default": "MAJOR",
+        "most_popular": ["MAJOR", "RELIGIOUS", "SPIRITUAL", "SEASONAL"]
     } 
