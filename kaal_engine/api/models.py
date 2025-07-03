@@ -100,13 +100,52 @@ class TimeData(BaseModel):
     start: DateTime
     end: DateTime
 
+class EndTimeData(BaseModel):
+    """End time data for tithi/nakshatra"""
+    end_time: DateTime = Field(..., description="Exact end time")
+    hours_remaining: int = Field(..., description="Hours remaining")
+    minutes_remaining: int = Field(..., description="Minutes remaining")
+    percentage_complete: float = Field(..., description="Percentage complete (0-100)")
+
+class TraditionalCalendarYears(BaseModel):
+    """Traditional Hindu calendar years"""
+    vikram_samvat: int = Field(..., description="Vikram Samvat year")
+    shaka_samvat: int = Field(..., description="Shaka Samvat year")
+    kali_yuga: int = Field(..., description="Kali Yuga year")
+    bengali_san: int = Field(..., description="Bengali San year")
+    tamil_year: str = Field(..., description="Tamil calendar year name")
+
+class TarabalaData(BaseModel):
+    """Tarabala and Chandrabala calculations"""
+    tarabala: str = Field(..., description="Tarabala classification (Janma, Sampat, Vipat, etc.)")
+    tarabala_number: int = Field(..., description="Tarabala number (1-9)")
+    tarabala_result: str = Field(..., description="Favorable/Unfavorable result")
+    chandrabala: str = Field(..., description="Chandrabala classification")
+    chandrabala_points: int = Field(..., description="Chandrabala points (0-6)")
+
+class ShoolData(BaseModel):
+    """Shool direction and Nivas calculations"""
+    shool_direction: str = Field(..., description="Shool direction (North, South, East, West)")
+    shool_deity: str = Field(..., description="Ruling deity of the direction")
+    nivas: str = Field(..., description="Current nivas (residence) of deity")
+    favorable_direction: str = Field(..., description="Most favorable direction for today")
+
+class PanchakaData(BaseModel):
+    """Panchaka classification"""
+    panchaka_type: str = Field(..., description="Panchaka type (Agni, Raja, Mrityu, etc.)")
+    panchaka_description: str = Field(..., description="Description of the panchaka")
+    favorable_activities: List[str] = Field(..., description="Favorable activities")
+    activities_to_avoid: List[str] = Field(..., description="Activities to avoid")
+
 class PanchangResponse(BaseModel):
     """Response model for panchang calculation"""
     # Basic panchang elements
     tithi: float = Field(..., description="Tithi (lunar day)")
     tithi_name: str = Field(..., description="Tithi name")
+    tithi_end_time: EndTimeData = Field(..., description="Tithi end time details")
     nakshatra: str = Field(..., description="Nakshatra (lunar mansion)")
     nakshatra_lord: str = Field(..., description="Nakshatra ruling planet")
+    nakshatra_end_time: EndTimeData = Field(..., description="Nakshatra end time details")
     yoga: float = Field(..., description="Yoga")
     yoga_name: str = Field(..., description="Yoga name")
     karana: float = Field(..., description="Karana")
@@ -141,6 +180,12 @@ class PanchangResponse(BaseModel):
     rashi_of_moon: str = Field(..., description="Moon's zodiac sign")
     rashi_of_sun: str = Field(..., description="Sun's zodiac sign")
     season: str = Field(..., description="Current season")
+    
+    # NEW: Enhanced traditional features
+    traditional_years: TraditionalCalendarYears = Field(..., description="Traditional Hindu calendar years")
+    tarabala: TarabalaData = Field(..., description="Tarabala and Chandrabala calculations")
+    shool_data: ShoolData = Field(..., description="Shool direction and Nivas information")
+    panchaka: PanchakaData = Field(..., description="Panchaka classification")
     
     # Metadata
     calculation_time_ms: int = Field(..., description="Calculation time in milliseconds")

@@ -1,6 +1,6 @@
 """
 Panchang Calculation Endpoints
-Complete lunar calendar calculations with 50+ parameters
+Complete lunar calendar calculations with 50+ parameters including traditional features
 """
 
 import time
@@ -10,7 +10,9 @@ from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from ..models import PanchangRequest, PanchangResponse, ErrorResponse
+from ..models import (PanchangRequest, PanchangResponse, ErrorResponse, 
+                     EndTimeData, TraditionalCalendarYears, TarabalaData, 
+                     ShoolData, PanchakaData)
 from ...db.database import get_db
 from ...db.models import PanchangCalculation
 from ...kaal import Kaal
@@ -85,19 +87,21 @@ async def calculate_panchang(
     """
     Calculate comprehensive panchang for given location and time
     
-    **Returns 50+ Vedic astronomical parameters including:**
-    - **Panchang Elements**: Tithi, Nakshatra, Yoga, Karana
+    **Returns 60+ Vedic astronomical parameters including:**
+    - **Panchang Elements**: Tithi, Nakshatra, Yoga, Karana with end times
     - **Solar Times**: Sunrise, sunset, solar noon, day length
     - **Lunar Times**: Moonrise, moonset, phase, illumination
     - **Time Periods**: Rahu Kaal, Gulika Kaal, Brahma Muhurta
     - **Planetary Positions**: All 9 Grahas with signs and nakshatras
+    - **Traditional Features**: Tarabala, Chandrabala, Shool direction, Panchaka
+    - **Calendar Years**: Vikram Samvat, Shaka Samvat, Kali Yuga, Bengali San
     - **Advanced**: Ayanamsha, sidereal time, seasonal information
     
     **Perfect for:**
-    - Calendar applications
-    - Daily panchang displays  
-    - Astrological software
-    - Research and analysis
+    - Traditional panchang applications
+    - Astrological software with complete data
+    - Research and detailed analysis
+    - Daily panchang displays with all features
     """
     try:
         start_time = time.time()
@@ -108,7 +112,7 @@ async def calculate_panchang(
         # Create cache key
         if cache:
             cache_key = cache.make_key(
-                'panchang',
+                'panchang_enhanced',
                 request.latitude,
                 request.longitude, 
                 request.date,
@@ -174,6 +178,55 @@ async def calculate_panchang(
             end=panchang_data['abhijit_muhurta']['end']
         )
         
+        # Create enhanced end time data objects
+        tithi_end_time = EndTimeData(
+            end_time=panchang_data.get('tithi_end_time', {}).get('end_time', dt),
+            hours_remaining=panchang_data.get('tithi_end_time', {}).get('hours_remaining', 0),
+            minutes_remaining=panchang_data.get('tithi_end_time', {}).get('minutes_remaining', 0),
+            percentage_complete=panchang_data.get('tithi_end_time', {}).get('percentage_complete', 0.0)
+        )
+        
+        nakshatra_end_time = EndTimeData(
+            end_time=panchang_data.get('nakshatra_end_time', {}).get('end_time', dt),
+            hours_remaining=panchang_data.get('nakshatra_end_time', {}).get('hours_remaining', 0),
+            minutes_remaining=panchang_data.get('nakshatra_end_time', {}).get('minutes_remaining', 0),
+            percentage_complete=panchang_data.get('nakshatra_end_time', {}).get('percentage_complete', 0.0)
+        )
+        
+        # Create traditional calendar years object
+        traditional_years = TraditionalCalendarYears(
+            vikram_samvat=panchang_data.get('traditional_years', {}).get('vikram_samvat', 2081),
+            shaka_samvat=panchang_data.get('traditional_years', {}).get('shaka_samvat', 1946),
+            kali_yuga=panchang_data.get('traditional_years', {}).get('kali_yuga', 5126),
+            bengali_san=panchang_data.get('traditional_years', {}).get('bengali_san', 1431),
+            tamil_year=panchang_data.get('traditional_years', {}).get('tamil_year', "Krodhi")
+        )
+        
+        # Create Tarabala data object
+        tarabala = TarabalaData(
+            tarabala=panchang_data.get('tarabala', {}).get('tarabala', 'Janma'),
+            tarabala_number=panchang_data.get('tarabala', {}).get('tarabala_number', 1),
+            tarabala_result=panchang_data.get('tarabala', {}).get('tarabala_result', 'Neutral'),
+            chandrabala=panchang_data.get('tarabala', {}).get('chandrabala', 'Average'),
+            chandrabala_points=panchang_data.get('tarabala', {}).get('chandrabala_points', 3)
+        )
+        
+        # Create Shool data object
+        shool_data = ShoolData(
+            shool_direction=panchang_data.get('shool_data', {}).get('shool_direction', 'North'),
+            shool_deity=panchang_data.get('shool_data', {}).get('shool_deity', 'Kubera'),
+            nivas=panchang_data.get('shool_data', {}).get('nivas', 'Ksheera Sagara'),
+            favorable_direction=panchang_data.get('shool_data', {}).get('favorable_direction', 'South')
+        )
+        
+        # Create Panchaka data object
+        panchaka = PanchakaData(
+            panchaka_type=panchang_data.get('panchaka', {}).get('panchaka_type', 'No Panchaka'),
+            panchaka_description=panchang_data.get('panchaka', {}).get('panchaka_description', 'Normal period'),
+            favorable_activities=panchang_data.get('panchaka', {}).get('favorable_activities', ['All normal activities']),
+            activities_to_avoid=panchang_data.get('panchaka', {}).get('activities_to_avoid', ['None specific'])
+        )
+        
         # Convert planetary positions
         from ..models import PlanetaryPosition
         graha_positions = {}
@@ -185,12 +238,14 @@ async def calculate_panchang(
                 nakshatra=data['nakshatra']
             )
         
-        # Create response
+        # Create enhanced response
         response = PanchangResponse(
             tithi=panchang_data['tithi'],
             tithi_name=panchang_data['tithi_name'],
+            tithi_end_time=tithi_end_time,
             nakshatra=panchang_data['nakshatra'],
             nakshatra_lord=panchang_data['nakshatra_lord'],
+            nakshatra_end_time=nakshatra_end_time,
             yoga=panchang_data['yoga'], 
             yoga_name=panchang_data['yoga_name'],
             karana=panchang_data['karana'],
@@ -215,6 +270,11 @@ async def calculate_panchang(
             rashi_of_moon=panchang_data['rashi_of_moon'],
             rashi_of_sun=panchang_data['rashi_of_sun'],
             season=panchang_data['season'],
+            # NEW: Enhanced traditional features
+            traditional_years=traditional_years,
+            tarabala=tarabala,
+            shool_data=shool_data,
+            panchaka=panchaka,
             calculation_time_ms=calculation_time_ms,
             location={
                 "latitude": request.latitude,
@@ -288,10 +348,17 @@ async def get_panchang(
     db: AsyncSession = Depends(get_db)
 ):
     """
-    GET endpoint for panchang calculation
+    GET endpoint for enhanced panchang calculation
     
-    Convenient GET interface for simple panchang requests.
+    Convenient GET interface for comprehensive panchang requests with traditional features.
     For advanced options, use the POST endpoint.
+    
+    **New Traditional Features:**
+    - **Tithi/Nakshatra End Times**: Exact remaining hours and minutes
+    - **Tarabala/Chandrabala**: Moon-based astrological calculations  
+    - **Shool Direction**: Directional considerations and deity information
+    - **Panchaka Classification**: Traditional 5-fold system with recommendations
+    - **Traditional Years**: Vikram Samvat, Shaka Samvat, Kali Yuga, Bengali San
     
     **Example:** `/v1/panchang?latitude=23.5&longitude=77.5&date=2025-07-02&time=14:30:00`
     """

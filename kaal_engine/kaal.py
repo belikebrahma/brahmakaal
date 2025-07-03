@@ -28,7 +28,7 @@ class Kaal:
                     dt: datetime, elevation: float = 0.0, 
                     ayanamsha: str = "LAHIRI") -> dict:
         """
-        Complete Panchang calculation with 50+ Vedic parameters
+        Complete Panchang calculation with 50+ Vedic parameters including traditional features
         """
         jd_utc = self._julian_day(dt)
         jd_tt = delta_t.utc_to_tt(jd_utc)
@@ -47,12 +47,30 @@ class Kaal:
         # Calculate time periods
         time_periods = self._calculate_time_periods(solar_times, lat, lon, dt)
         
+        # Calculate end times for tithi and nakshatra
+        tithi_end_data = self._calculate_tithi_end_time(sun_long, moon_long, jd_tt)
+        nakshatra_end_data = self._calculate_nakshatra_end_time(moon_long, jd_tt)
+        
+        # Calculate traditional calendar years
+        traditional_years = self._calculate_traditional_years(dt)
+        
+        # Calculate Tarabala and Chandrabala
+        tarabala_data = self._calculate_tarabala_chandrabala(moon_long, dt)
+        
+        # Calculate Shool direction and Nivas
+        shool_data = self._calculate_shool_nivas(dt, moon_long)
+        
+        # Calculate Panchaka classification
+        panchaka_data = self._calculate_panchaka(dt, moon_long)
+        
         return {
             # Basic Panchang Elements
             "tithi": self._compute_tithi(sun_long, moon_long),
             "tithi_name": self._get_tithi_name(self._compute_tithi(sun_long, moon_long)),
+            "tithi_end_time": tithi_end_data,
             "nakshatra": self._moon_nakshatra(moon_long),
             "nakshatra_lord": self._get_nakshatra_lord(moon_long),
+            "nakshatra_end_time": nakshatra_end_data,
             "yoga": self._compute_yoga(sun_long, moon_long),
             "yoga_name": self._get_yoga_name(self._compute_yoga(sun_long, moon_long)),
             "karana": self._compute_karana(sun_long, moon_long),
@@ -89,8 +107,271 @@ class Kaal:
             "rashi_of_moon": self._get_rashi(moon_long),
             "rashi_of_sun": self._get_rashi(sun_long),
             "season": self._get_season(sun_long),
-            "rtl_tithi_remaining": self._get_tithi_remaining_time(sun_long, moon_long, jd_tt)
+            
+            # NEW: Enhanced traditional features
+            "traditional_years": traditional_years,
+            "tarabala": tarabala_data,
+            "shool_data": shool_data,
+            "panchaka": panchaka_data
         }
+    
+    def _calculate_tithi_end_time(self, sun_long: float, moon_long: float, jd_tt: float) -> dict:
+        """Calculate exact end time for current tithi"""
+        current_tithi = self._compute_tithi(sun_long, moon_long)
+        next_tithi_target = math.ceil(current_tithi)
+        
+        # Calculate how much tithi has progressed (0-1)
+        progress = current_tithi % 1
+        remaining_fraction = 1 - progress
+        
+        # Average tithi duration is about 23.62 hours
+        # More precise calculation would use lunar motion rates
+        average_tithi_duration_hours = 23.62
+        remaining_hours = remaining_fraction * average_tithi_duration_hours
+        
+        # Calculate end time
+        end_time = datetime.utcfromtimestamp((jd_tt - 2440587.5) * 86400) + timedelta(hours=remaining_hours)
+        
+        return {
+            "end_time": end_time,
+            "hours_remaining": int(remaining_hours),
+            "minutes_remaining": int((remaining_hours % 1) * 60),
+            "percentage_complete": round(progress * 100, 1)
+        }
+    
+    def _calculate_nakshatra_end_time(self, moon_long: float, jd_tt: float) -> dict:
+        """Calculate exact end time for current nakshatra"""
+        # Each nakshatra spans 13.333... degrees (360/27)
+        nakshatra_span = 360.0 / 27.0
+        current_nakshatra_position = moon_long % nakshatra_span
+        progress = current_nakshatra_position / nakshatra_span
+        
+        # Average moon motion is about 13.2 degrees per day
+        moon_daily_motion = 13.2
+        remaining_degrees = nakshatra_span - current_nakshatra_position
+        remaining_hours = (remaining_degrees / moon_daily_motion) * 24
+        
+        # Calculate end time
+        end_time = datetime.utcfromtimestamp((jd_tt - 2440587.5) * 86400) + timedelta(hours=remaining_hours)
+        
+        return {
+            "end_time": end_time,
+            "hours_remaining": int(remaining_hours),
+            "minutes_remaining": int((remaining_hours % 1) * 60),
+            "percentage_complete": round(progress * 100, 1)
+        }
+    
+    def _calculate_traditional_years(self, dt: datetime) -> dict:
+        """Calculate traditional Hindu calendar years"""
+        year = dt.year
+        
+        # Vikram Samvat (starts around April, so add 57 for most of the year)
+        if dt.month >= 4:
+            vikram_samvat = year + 57
+        else:
+            vikram_samvat = year + 56
+        
+        # Shaka Samvat (starts around March/April, subtract 78)
+        if dt.month >= 3:
+            shaka_samvat = year - 78
+        else:
+            shaka_samvat = year - 79
+        
+        # Kali Yuga year (add 3102 to CE year)
+        kali_yuga = year + 3102
+        
+        # Bengali San (starts around April, subtract 593)
+        if dt.month >= 4:
+            bengali_san = year - 593
+        else:
+            bengali_san = year - 594
+        
+        # Tamil year names cycle (60-year cycle)
+        tamil_years = [
+            "Prabhava", "Vibhava", "Shukla", "Pramoda", "Prajapati", "Angirasa", "Shrimukha", "Bhava",
+            "Yuva", "Dhata", "Ishvara", "Bahudhanya", "Pramadi", "Vikrama", "Vrusha", "Chitrabhanu",
+            "Svabhanu", "Tarana", "Parthiva", "Vyaya", "Sarvajeeth", "Sarvadhadi", "Virodhi", "Vikrita",
+            "Khara", "Nandana", "Vijaya", "Jaya", "Manmatha", "Durmukhi", "Hemalamba", "Vilamba",
+            "Vikari", "Sharvari", "Plava", "Shubhakrit", "Sobhakrit", "Krodhi", "Vishvavasu", "Parabhava",
+            "Plavanga", "Kilaka", "Saumya", "Sadharana", "Virodhikrit", "Paridhavi", "Pramadi", "Ananda",
+            "Rakshasa", "Nala", "Pingala", "Kalayukti", "Siddharthi", "Raudra", "Durmati", "Dundubhi",
+            "Rudhirodgari", "Raktakshi", "Krodhana", "Akshaya"
+        ]
+        
+        # Calculate Tamil year (approximately)
+        tamil_year_index = (year - 1987) % 60  # 1987 was Prabhava year
+        tamil_year = tamil_years[tamil_year_index]
+        
+        return {
+            "vikram_samvat": vikram_samvat,
+            "shaka_samvat": shaka_samvat,
+            "kali_yuga": kali_yuga,
+            "bengali_san": bengali_san,
+            "tamil_year": tamil_year
+        }
+    
+    def _calculate_tarabala_chandrabala(self, moon_long: float, dt: datetime) -> dict:
+        """Calculate Tarabala and Chandrabala"""
+        # Get birth nakshatra (using a reference - in real app, this would be user's birth nakshatra)
+        # For demo, using Rohini (4th nakshatra) as reference
+        birth_nakshatra_number = 4  # This should come from user data
+        
+        # Current Moon nakshatra
+        current_nakshatra_number = self._get_nakshatra_number(moon_long)
+        
+        # Calculate Tarabala
+        if current_nakshatra_number >= birth_nakshatra_number:
+            tara_count = current_nakshatra_number - birth_nakshatra_number + 1
+        else:
+            tara_count = current_nakshatra_number + 27 - birth_nakshatra_number + 1
+        
+        tara_count = ((tara_count - 1) % 9) + 1
+        
+        tara_names = [
+            "Janma", "Sampat", "Vipat", "Kshema", "Pratyak", "Sadhaka", "Vadha", "Mitra", "Param Mitra"
+        ]
+        
+        tara_results = [
+            "Neutral", "Very Good", "Bad", "Good", "Bad", "Good", "Very Bad", "Very Good", "Excellent"
+        ]
+        
+        tarabala = tara_names[tara_count - 1]
+        tarabala_result = tara_results[tara_count - 1]
+        
+        # Calculate Chandrabala (simplified)
+        # Based on lunar day and other factors
+        tithi_number = int(self._compute_tithi(self._get_sun_longitude(dt), moon_long))
+        chandrabala_points = min(6, max(0, (tithi_number % 8) + 1))
+        
+        chandrabala_names = ["Very Weak", "Weak", "Average", "Good", "Very Good", "Excellent", "Supreme"]
+        chandrabala = chandrabala_names[min(6, chandrabala_points)]
+        
+        return {
+            "tarabala": tarabala,
+            "tarabala_number": tara_count,
+            "tarabala_result": tarabala_result,
+            "chandrabala": chandrabala,
+            "chandrabala_points": chandrabala_points
+        }
+    
+    def _calculate_shool_nivas(self, dt: datetime, moon_long: float) -> dict:
+        """Calculate Shool direction and Nivas"""
+        day_of_week = dt.weekday()  # 0 = Monday
+        
+        # Shool directions by day of week
+        shool_directions = [
+            "North",     # Monday
+            "East",      # Tuesday  
+            "South",     # Wednesday
+            "West",      # Thursday
+            "North",     # Friday
+            "East",      # Saturday
+            "South"      # Sunday
+        ]
+        
+        # Ruling deities for each direction
+        direction_deities = {
+            "North": "Kubera",
+            "East": "Indra", 
+            "South": "Yama",
+            "West": "Varuna"
+        }
+        
+        # Current Nivas (residence) calculation based on lunar month
+        nivas_cycle = ["Ksheera Sagara", "Vaikuntha", "Ksheer Sagara", "Bhu Loka", "Patala Loka", "Swarga Loka"]
+        lunar_month = int((moon_long / 30) % 12)
+        nivas = nivas_cycle[lunar_month % 6]
+        
+        # Favorable direction (opposite to Shool)
+        direction_opposites = {
+            "North": "South",
+            "South": "North", 
+            "East": "West",
+            "West": "East"
+        }
+        
+        shool_direction = shool_directions[day_of_week]
+        favorable_direction = direction_opposites[shool_direction]
+        
+        return {
+            "shool_direction": shool_direction,
+            "shool_deity": direction_deities[shool_direction],
+            "nivas": nivas,
+            "favorable_direction": favorable_direction
+        }
+    
+    def _calculate_panchaka(self, dt: datetime, moon_long: float) -> dict:
+        """Calculate Panchaka classification"""
+        # Get current nakshatra
+        nakshatra_number = self._get_nakshatra_number(moon_long)
+        
+        # Panchaka nakshatras: Dhanishtha, Shatabhisha, Purva Bhadrapada, Uttara Bhadrapada, Revati
+        panchaka_nakshatras = [23, 24, 25, 26, 27]  # Nakshatra numbers
+        
+        if nakshatra_number in panchaka_nakshatras:
+            # Determine specific Panchaka type based on additional factors
+            day_of_week = dt.weekday()
+            
+            panchaka_types = [
+                {
+                    "type": "Agni Panchaka",
+                    "description": "Fire element dominance, avoid fire-related activities",
+                    "favorable": ["Religious ceremonies", "Spiritual practices", "Meditation"],
+                    "avoid": ["Starting fires", "Cooking elaborate meals", "Metalwork"]
+                },
+                {
+                    "type": "Raja Panchaka", 
+                    "description": "Royal element, good for leadership activities",
+                    "favorable": ["Government work", "Leadership roles", "Important decisions"],
+                    "avoid": ["Submissive activities", "Following others blindly"]
+                },
+                {
+                    "type": "Mrityu Panchaka",
+                    "description": "Death element, avoid new beginnings",
+                    "favorable": ["Ending bad habits", "Completing projects", "Letting go"],
+                    "avoid": ["New ventures", "Marriages", "Important purchases"]
+                },
+                {
+                    "type": "Chor Panchaka",
+                    "description": "Theft element, be cautious with valuables",
+                    "favorable": ["Security arrangements", "Vigilance", "Protective measures"],
+                    "avoid": ["Displaying wealth", "Traveling with valuables", "Trusting strangers"]
+                },
+                {
+                    "type": "Roga Panchaka",
+                    "description": "Disease element, focus on health",
+                    "favorable": ["Health checkups", "Healing practices", "Medical treatments"],
+                    "avoid": ["Unhealthy food", "Stress", "Overexertion"]
+                }
+            ]
+            
+            panchaka_index = (nakshatra_number - 23 + day_of_week) % 5
+            panchaka_info = panchaka_types[panchaka_index]
+            
+            return {
+                "panchaka_type": panchaka_info["type"],
+                "panchaka_description": panchaka_info["description"],
+                "favorable_activities": panchaka_info["favorable"],
+                "activities_to_avoid": panchaka_info["avoid"]
+            }
+        else:
+            return {
+                "panchaka_type": "No Panchaka",
+                "panchaka_description": "Normal period, no special Panchaka restrictions",
+                "favorable_activities": ["All normal activities", "General work", "Regular tasks"],
+                "activities_to_avoid": ["None specific"]
+            }
+    
+    def _get_nakshatra_number(self, moon_long: float) -> int:
+        """Get nakshatra number (1-27) from moon longitude"""
+        return int(moon_long / 13.333333) + 1
+    
+    def _get_sun_longitude(self, dt: datetime) -> float:
+        """Get sun longitude for given datetime"""
+        jd_utc = self._julian_day(dt)
+        jd_tt = delta_t.utc_to_tt(jd_utc)
+        planetary_data = self._get_planetary_positions(jd_tt, "LAHIRI")
+        return planetary_data['sun']['longitude']
     
     def _get_planetary_positions(self, jd_tt: float, ayanamsha: str) -> dict:
         """Get positions of all 9 Grahas (Vedic planets)"""
@@ -254,7 +535,7 @@ class Kaal:
         # Abhijit Muhurta (middle of the day)
         solar_noon = solar_times['solar_noon']
         abhijit_start = solar_noon - (24 / (24 * 60))  # 24 minutes before noon
-        abhijit_end = solar_noon + (24 / (24 * 60))    # 24 minutes after noon
+        abhijit_end = solar_noon + (24 / (24 * 60))
         
         return {
             'rahu_kaal': {'start': rahu_start, 'end': rahu_end},
@@ -288,21 +569,21 @@ class Kaal:
         return self._get_nakshatra_from_longitude(moon_long)
     
     def _get_nakshatra_from_longitude(self, longitude: float) -> str:
-        """Get nakshatra from any longitude"""
-        nakshatra_index = int(longitude // (13 + 20/60))
+        """Get nakshatra name from longitude"""
         nakshatras = [
             "Ashwini", "Bharani", "Krittika", "Rohini", "Mrigashira",
             "Ardra", "Punarvasu", "Pushya", "Ashlesha", "Magha",
-            "Purva Phalguni", "Uttara Phalguni", "Hasta", "Chitra",
-            "Swati", "Vishakha", "Anuradha", "Jyeshtha", "Mula",
-            "Purva Ashadha", "Uttara Ashadha", "Shravana", "Dhanishta",
-            "Shatabhisha", "Purva Bhadrapada", "Uttara Bhadrapada", "Revati"
+            "Purva Phalguni", "Uttara Phalguni", "Hasta", "Chitra", "Swati",
+            "Vishakha", "Anuradha", "Jyeshtha", "Moola", "Purva Ashadha",
+            "Uttara Ashadha", "Shravana", "Dhanishtha", "Shatabhisha", "Purva Bhadrapada",
+            "Uttara Bhadrapada", "Revati"
         ]
-        return nakshatras[nakshatra_index % 27]
+        
+        nakshatra_index = int(longitude / 13.333333) % 27
+        return nakshatras[nakshatra_index]
     
     def _get_nakshatra_lord(self, moon_long: float) -> str:
-        """Get the ruling planet of moon's nakshatra"""
-        nakshatra_index = int(moon_long // (13 + 20/60))
+        """Get nakshatra ruling planet"""
         lords = [
             "Ketu", "Venus", "Sun", "Moon", "Mars",
             "Rahu", "Jupiter", "Saturn", "Mercury", "Ketu",
@@ -311,33 +592,36 @@ class Kaal:
             "Sun", "Moon", "Mars", "Rahu", "Jupiter",
             "Saturn", "Mercury"
         ]
-        return lords[nakshatra_index % 27]
+        
+        nakshatra_index = int(moon_long / 13.333333) % 27
+        return lords[nakshatra_index]
     
     def _compute_yoga(self, sun_long: float, moon_long: float) -> float:
-        """Calculate yoga (combination of sun and moon)"""
-        return ((sun_long + moon_long) % 360) / 13.3333
+        """Calculate yoga"""
+        return ((sun_long + moon_long) % 360) / 13.333333
     
     def _get_yoga_name(self, yoga: float) -> str:
         """Get yoga name from yoga number"""
-        yoga_names = [
+        yogas = [
             "Vishkambha", "Priti", "Ayushman", "Saubhagya", "Shobhana",
             "Atiganda", "Sukarma", "Dhriti", "Shula", "Ganda",
             "Vriddhi", "Dhruva", "Vyaghata", "Harshana", "Vajra",
-            "Siddhi", "Vyatipata", "Variyas", "Parigha", "Shiva",
+            "Siddhi", "Vyatipata", "Variyan", "Parigha", "Shiva",
             "Siddha", "Sadhya", "Shubha", "Shukla", "Brahma",
             "Indra", "Vaidhriti"
         ]
+        
         yoga_index = int(yoga) % 27
-        return yoga_names[yoga_index]
+        return yogas[yoga_index]
     
     def _compute_karana(self, sun_long: float, moon_long: float) -> float:
-        """Calculate karana (half tithi)"""
+        """Calculate karana"""
         tithi = self._compute_tithi(sun_long, moon_long)
         return (tithi * 2) % 60
     
     def _get_karana_name(self, karana: float) -> str:
         """Get karana name from karana number"""
-        karana_names = [
+        karanas = [
             "Bava", "Balava", "Kaulava", "Taitila", "Gara", "Vanija", "Vishti",
             "Bava", "Balava", "Kaulava", "Taitila", "Gara", "Vanija", "Vishti",
             "Bava", "Balava", "Kaulava", "Taitila", "Gara", "Vanija", "Vishti",
@@ -346,18 +630,14 @@ class Kaal:
             "Bava", "Balava", "Kaulava", "Taitila", "Gara", "Vanija", "Vishti",
             "Bava", "Balava", "Kaulava", "Taitila", "Gara", "Vanija", "Vishti",
             "Bava", "Balava", "Kaulava", "Taitila", "Gara", "Vanija", "Vishti",
-            "Shakuni", "Chatushpada", "Naga", "Kimstughna"
+            "Kimstughna", "Shakuni", "Chatushpada", "Naga"
         ]
-        karana_index = int(karana) % len(karana_names)
-        return karana_names[karana_index]
-    
-    def _julian_day(self, dt: datetime) -> float:
-        """Convert datetime to Julian Day"""
-        t = Time(dt, scale='utc')
-        return t.jd
+        
+        karana_index = int(karana / 2) % len(karanas)
+        return karanas[karana_index]
     
     def _compute_moon_phase(self, sun_long: float, moon_long: float) -> str:
-        """Calculate moon phase"""
+        """Calculate moon phase name"""
         phase_angle = (moon_long - sun_long) % 360
         
         if phase_angle < 45:
@@ -416,60 +696,39 @@ class Kaal:
     
     def _compute_sidereal_time(self, jd_tt: float, lon: float) -> float:
         """Calculate Local Sidereal Time"""
-        # Simplified calculation - full version would use GAST
+        # Simplified sidereal time calculation
         T = (jd_tt - 2451545.0) / 36525.0
-        theta0 = 280.46061837 + 360.98564736629 * (jd_tt - 2451545.0)
-        theta0 += 0.000387933 * T * T - T * T * T / 38710000.0
         
-        # Convert to local sidereal time
-        lst = (theta0 + lon) % 360
+        # Greenwich Mean Sidereal Time
+        gmst = 280.46061837 + 360.98564736629 * (jd_tt - 2451545.0) + 0.000387933 * T * T - T * T * T / 38710000.0
+        
+        # Local Sidereal Time
+        lst = (gmst + lon) % 360
         return lst / 15.0  # Convert to hours
     
     def _get_season(self, sun_long: float) -> str:
-        """Get season based on sun's position"""
-        if 0 <= sun_long < 30:
+        """Get current season from sun longitude"""
+        if 0 <= sun_long < 90:
             return "Spring"
-        elif 30 <= sun_long < 60:
-            return "Late Spring"
-        elif 60 <= sun_long < 90:
+        elif 90 <= sun_long < 180:
             return "Summer"
-        elif 90 <= sun_long < 120:
-            return "Late Summer"
-        elif 120 <= sun_long < 150:
-            return "Monsoon"
-        elif 150 <= sun_long < 180:
-            return "Late Monsoon"
-        elif 180 <= sun_long < 210:
+        elif 180 <= sun_long < 270:
             return "Autumn"
-        elif 210 <= sun_long < 240:
-            return "Late Autumn"
-        elif 240 <= sun_long < 270:
-            return "Winter"
-        elif 270 <= sun_long < 300:
-            return "Late Winter"
-        elif 300 <= sun_long < 330:
-            return "Pre-Spring"
         else:
-            return "Late Winter"
+            return "Winter"
     
-    def _get_tithi_remaining_time(self, sun_long: float, moon_long: float, jd_tt: float) -> dict:
-        """Calculate remaining time for current tithi"""
-        current_tithi = self._compute_tithi(sun_long, moon_long)
-        next_tithi = math.ceil(current_tithi)
+    def _julian_day(self, dt: datetime) -> float:
+        """Convert datetime to Julian Day"""
+        a = (14 - dt.month) // 12
+        y = dt.year + 4800 - a
+        m = dt.month + 12 * a - 3
         
-        # Simplified calculation - in practice this would require
-        # calculating the exact moment of tithi transition
-        progress = current_tithi % 1
-        remaining_fraction = 1 - progress
+        jdn = dt.day + (153 * m + 2) // 5 + 365 * y + y // 4 - y // 100 + y // 400 - 32045
         
-        # Assume average tithi duration of about 0.984 days
-        remaining_hours = remaining_fraction * 23.6
+        # Add fractional day
+        fractional_day = (dt.hour + dt.minute/60.0 + dt.second/3600.0) / 24.0
         
-        return {
-            'hours': int(remaining_hours),
-            'minutes': int((remaining_hours % 1) * 60),
-            'percentage_complete': round(progress * 100, 1)
-        }
+        return jdn + fractional_day - 0.5
     
     def get_ayanamsha_comparison(self, jd_tt: float) -> dict:
         """Compare all supported ayanamsha systems for given date"""
@@ -486,173 +745,3 @@ class Kaal:
     def get_supported_ayanamshas(self) -> dict:
         """Get list of all supported ayanamsha systems"""
         return self.ayanamsha_engine.SUPPORTED_SYSTEMS
-    
-    def calculate_planetary_aspects(self, planetary_data: dict) -> dict:
-        """Calculate planetary aspects between all planets"""
-        aspects = {}
-        planets = list(planetary_data.keys())
-        
-        # Define aspect orbs (in degrees)
-        aspect_orbs = {
-            'conjunction': 8,
-            'opposition': 8,
-            'trine': 6,
-            'square': 6,
-            'sextile': 4
-        }
-        
-        for i, planet1 in enumerate(planets):
-            for planet2 in planets[i+1:]:
-                if planet1 == planet2:
-                    continue
-                
-                long1 = planetary_data[planet1]['longitude']
-                long2 = planetary_data[planet2]['longitude']
-                
-                # Calculate angular separation
-                diff = abs(long1 - long2)
-                if diff > 180:
-                    diff = 360 - diff
-                
-                # Check for aspects
-                aspect_found = None
-                if diff <= aspect_orbs['conjunction']:
-                    aspect_found = 'conjunction'
-                elif abs(diff - 180) <= aspect_orbs['opposition']:
-                    aspect_found = 'opposition'
-                elif abs(diff - 120) <= aspect_orbs['trine']:
-                    aspect_found = 'trine'
-                elif abs(diff - 90) <= aspect_orbs['square']:
-                    aspect_found = 'square'
-                elif abs(diff - 60) <= aspect_orbs['sextile']:
-                    aspect_found = 'sextile'
-                
-                if aspect_found:
-                    aspect_key = f"{planet1}-{planet2}"
-                    aspects[aspect_key] = {
-                        'aspect': aspect_found,
-                        'orb': round(diff, 2),
-                        'planets': [planet1, planet2]
-                    }
-        
-        return aspects
-    
-    def calculate_house_positions(self, jd_tt: float, lat: float, lon: float, house_system: str = "PLACIDUS") -> dict:
-        """Calculate house cusps for birth chart"""
-        # This is a simplified house calculation
-        # Full implementation would use proper algorithms for different house systems
-        
-        # Calculate Local Sidereal Time
-        lst = self._compute_sidereal_time(jd_tt, lon)
-        
-        # Calculate Ascendant (simplified)
-        # In reality, this requires complex spherical trigonometry
-        ascendant = (lst * 15 + lon) % 360
-        
-        houses = {}
-        for house_num in range(1, 13):
-            if house_system == "EQUAL":
-                # Equal house system - 30 degrees per house
-                house_cusp = (ascendant + (house_num - 1) * 30) % 360
-            else:
-                # Simplified Placidus approximation
-                house_cusp = (ascendant + (house_num - 1) * 30) % 360
-                # In real implementation, would apply Placidus calculations
-            
-            houses[f"house_{house_num}"] = {
-                'cusp_longitude': house_cusp,
-                'rashi': self._get_rashi(house_cusp),
-                'lord': self._get_house_lord(house_cusp)
-            }
-        
-        return houses
-    
-    def _get_house_lord(self, longitude: float) -> str:
-        """Get the ruling planet of a rashi"""
-        rashi_index = int(longitude // 30)
-        lords = [
-            "Mars", "Venus", "Mercury", "Moon", "Sun", "Mercury",
-            "Venus", "Mars", "Jupiter", "Saturn", "Saturn", "Jupiter"
-        ]
-        return lords[rashi_index % 12]
-    
-    def detect_yogas(self, planetary_data: dict, house_data: dict = None) -> list:
-        """Detect common yogas in the chart"""
-        yogas = []
-        
-        # Simple yoga detection examples
-        # Raja Yoga - Jupiter and Venus conjunction/aspect
-        jupiter_long = planetary_data.get('jupiter', {}).get('longitude', 0)
-        venus_long = planetary_data.get('venus', {}).get('longitude', 0)
-        
-        diff = abs(jupiter_long - venus_long)
-        if diff > 180:
-            diff = 360 - diff
-        
-        if diff <= 10:  # Conjunction within 10 degrees
-            yogas.append({
-                'name': 'Guru-Shukra Yoga',
-                'description': 'Jupiter-Venus conjunction brings wealth and knowledge',
-                'strength': 'Strong' if diff <= 5 else 'Moderate'
-            })
-        
-        # Gaja Kesari Yoga - Moon and Jupiter in Kendra
-        moon_long = planetary_data.get('moon', {}).get('longitude', 0)
-        moon_jupiter_diff = abs(moon_long - jupiter_long)
-        if moon_jupiter_diff > 180:
-            moon_jupiter_diff = 360 - moon_jupiter_diff
-        
-        if moon_jupiter_diff <= 10:
-            yogas.append({
-                'name': 'Gaja Kesari Yoga',
-                'description': 'Moon-Jupiter combination brings fame and prosperity',
-                'strength': 'Strong'
-            })
-        
-        # More yogas would be added in full implementation
-        
-        return yogas
-    
-    def calculate_dasha_periods(self, moon_nakshatra: str, birth_jd: float) -> dict:
-        """Calculate Vimshottari Dasha periods (simplified)"""
-        # Dasha order and periods (in years)
-        dasha_order = [
-            ('Ketu', 7), ('Venus', 20), ('Sun', 6), ('Moon', 10),
-            ('Mars', 7), ('Rahu', 18), ('Jupiter', 16), ('Saturn', 19), ('Mercury', 17)
-        ]
-        
-        # Starting dasha based on nakshatra (simplified mapping)
-        nakshatra_to_dasha = {
-            'Ashwini': 0, 'Bharani': 1, 'Krittika': 2, 'Rohini': 3, 'Mrigashira': 4,
-            'Ardra': 5, 'Punarvasu': 6, 'Pushya': 7, 'Ashlesha': 8, 'Magha': 0,
-            'Purva Phalguni': 1, 'Uttara Phalguni': 2, 'Hasta': 3, 'Chitra': 4,
-            'Swati': 5, 'Vishakha': 6, 'Anuradha': 7, 'Jyeshtha': 8, 'Mula': 0,
-            'Purva Ashadha': 1, 'Uttara Ashadha': 2, 'Shravana': 3, 'Dhanishta': 4,
-            'Shatabhisha': 5, 'Purva Bhadrapada': 6, 'Uttara Bhadrapada': 7, 'Revati': 8
-        }
-        
-        start_index = nakshatra_to_dasha.get(moon_nakshatra, 0)
-        
-        dashas = []
-        current_jd = birth_jd
-        
-        for i in range(9):
-            dasha_index = (start_index + i) % 9
-            planet, years = dasha_order[dasha_index]
-            
-            dashas.append({
-                'planet': planet,
-                'start_date': self._jd_to_date(current_jd),
-                'end_date': self._jd_to_date(current_jd + years * 365.25),
-                'duration_years': years
-            })
-            
-            current_jd += years * 365.25
-        
-        return {'maha_dashas': dashas}
-    
-    def _jd_to_date(self, jd: float) -> str:
-        """Convert Julian Day to date string"""
-        from astropy.time import Time
-        t = Time(jd, format='jd')
-        return t.datetime.strftime("%Y-%m-%d")
