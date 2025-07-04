@@ -26,7 +26,7 @@ def create_deployment_configs():
             "PORT": "8000",
             "ENVIRONMENT": "production",
             "DATABASE_URL": "${{Postgres.DATABASE_URL}}",
-            "JWT_SECRET_KEY": "your-super-secret-jwt-key-change-this-in-production",
+            "JWT_SECRET_KEY": "455a303912b80c93f55e833adb98e4a42acb094c",
             "EMAIL_ENABLED": "true",
             "SMTP_HOST": "smtp.zoho.in",
             "SMTP_PORT": "465",
@@ -55,7 +55,7 @@ def create_deployment_configs():
                 "envVars": [
                     {"key": "PORT", "value": "8000"},
                     {"key": "ENVIRONMENT", "value": "production"},
-                    {"key": "JWT_SECRET_KEY", "value": "your-super-secret-jwt-key-change-this"},
+                    {"key": "JWT_SECRET_KEY", "value": "455a303912b80c93f55e833adb98e4a42acb094c"},
                     {"key": "EMAIL_ENABLED", "value": "true"},
                     {"key": "SMTP_HOST", "value": "smtp.zoho.in"},
                     {"key": "SMTP_PORT", "value": "465"},
@@ -121,7 +121,7 @@ services:
     environment:
       - ENVIRONMENT=development
       - DATABASE_URL=postgresql://postgres:postgres@db:5432/brahmakaal
-      - JWT_SECRET_KEY=dev-secret-key
+      - JWT_SECRET_KEY=455a303912b80c93f55e833adb98e4a42acb094c
       - EMAIL_ENABLED=true
       - SMTP_HOST=smtp.zoho.in
       - SMTP_PORT=465
@@ -250,7 +250,7 @@ def print_deployment_guide():
     print("\n⚙️ **ENVIRONMENT VARIABLES NEEDED:**")
     print("-" * 50)
     print("DATABASE_URL=postgresql://...")
-    print("JWT_SECRET_KEY=your-secret-key")
+    print("JWT_SECRET_KEY=455a303912b80c93f55e833adb98e4a42acb094c")
     print("EMAIL_ENABLED=true")
     print("SMTP_HOST=smtp.zoho.in")
     print("SMTP_PORT=465")

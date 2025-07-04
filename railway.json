@@ -9,7 +9,7 @@
     "PORT": "8000",
     "ENVIRONMENT": "production",
     "DATABASE_URL": "${{Postgres.DATABASE_URL}}",
-    "JWT_SECRET_KEY": "your-super-secret-jwt-key-change-this-in-production",
+    "JWT_SECRET_KEY": "455a303912b80c93f55e833adb98e4a42acb094c",
     "EMAIL_ENABLED": "true",
     "SMTP_HOST": "smtp.zoho.in",
     "SMTP_PORT": "465",

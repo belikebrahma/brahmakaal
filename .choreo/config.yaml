@@ -1,0 +1,41 @@
+version: v1
+services:
+  - name: brahmakaal-api
+    type: web-app
+    language: python
+    buildpack: docker
+    dockerfile: Dockerfile
+    port: 8000
+    healthCheck:
+      endpoint: /v1/health
+      timeoutSeconds: 30
+    env:
+      - name: ENVIRONMENT
+        value: production
+      - name: PORT
+        value: "8000"
+      - name: HOST
+        value: "0.0.0.0"
+      - name: JWT_SECRET_KEY
+        secret: 455a303912b80c93f55e833adb98e4a42acb094c
+      - name: EMAIL_ENABLED
+        value: "true"
+      - name: WEBHOOK_ENABLED
+        value: "true"
+      # Database connection will be provided by choreo.dev
+      - name: DATABASE_URL
+        secret: database-url
+    resources:
+      cpu: 500m
+      memory: 1Gi
+    scaling:
+      minReplicas: 1
+      maxReplicas: 3
+
+secrets:
+  - name: jwt-secret-key
+    description: "JWT Secret Key for authentication"
+  - name: database-url
+    description: "PostgreSQL database connection URL"
+  - name: smtp-credentials
+    description: "SMTP credentials for email service" 

@@ -8,7 +8,7 @@ services:
     environment:
       - ENVIRONMENT=development
       - DATABASE_URL=postgresql://postgres:postgres@db:5432/brahmakaal
-      - JWT_SECRET_KEY=dev-secret-key
+      - JWT_SECRET_KEY=455a303912b80c93f55e833adb98e4a42acb094c
       - EMAIL_ENABLED=true
       - SMTP_HOST=smtp.zoho.in
       - SMTP_PORT=465

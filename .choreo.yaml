@@ -1,0 +1,44 @@
+version: v1
+services:
+  - name: brahmakaal-api
+    type: web-app
+    language: python
+    buildpack: docker
+    dockerfile: Dockerfile
+    port: 8000
+    healthCheck:
+      endpoint: /v1/health
+      timeoutSeconds: 30
+    env:
+      - name: ENVIRONMENT
+        value: production
+      - name: PORT
+        value: "8000"
+      - name: HOST
+        value: "0.0.0.0"
+      - name: JWT_SECRET_KEY
+        value: "455a303912b80c93f55e833adb98e4a42acb094c"
+      - name: DATABASE_URL
+        value: "postgres://avnadmin:AVNS_E8ad8bmRF1FxJVmOVS-@kaal-arisingpopli.c.aivencloud.com:13649/defaultdb?sslmode=require"
+      - name: EMAIL_ENABLED
+        value: "true"
+      - name: SMTP_HOST
+        value: "smtp.zoho.in"
+      - name: SMTP_PORT
+        value: "465"
+      - name: SMTP_USER
+        value: "aham@brah.ma"
+      - name: SMTP_PASS
+        value: "6whrzKc*@brahma"
+      - name: SMTP_SECURE
+        value: "true"
+      - name: EMAIL_FROM
+        value: "aham@brah.ma"
+      - name: WEBHOOK_ENABLED
+        value: "true"
+    resources:
+      cpu: 500m
+      memory: 1Gi
+    scaling:
+      minReplicas: 1
+      maxReplicas: 3 
