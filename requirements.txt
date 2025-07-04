@@ -29,6 +29,7 @@ redis>=4.5.0
 
 # HTTP & Networking
 httpx>=0.25.2
+aiohttp>=3.9.1
 python-jose[cryptography]>=3.3.0
 
 # Email & Templates
