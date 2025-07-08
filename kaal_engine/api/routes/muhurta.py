@@ -10,7 +10,9 @@ from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from ..models import MuhurtaRequest, MuhurtaResponse, ErrorResponse
+from ..models import (MuhurtaRequest, MuhurtaResponse, ErrorResponse,
+                     PersonalizedMuhurtaRequest, PersonalizedMuhurtaResponse,
+                     BirthData, PersonalizedMuhurtaResult, AyanamshaSystem)
 from ...db.database import get_db
 from ...db.models import MuhurtaCalculation
 from ...core.muhurta import MuhurtaEngine, MuhurtaType
@@ -256,4 +258,270 @@ async def get_muhurta_types():
             "typical_duration": "1-2 hours",
             "key_factors": ["basic_panchang", "inauspicious_period_avoidance"]
         }
-    } 
+    }
+
+# =============================================================================
+# PHASE 4: PERSONALIZED MUHURTA ENDPOINT
+# =============================================================================
+
+async def get_kaal_engine():
+    """Dependency to get Kaal engine - will be overridden by main app"""
+    raise HTTPException(
+        status_code=503, 
+        detail="Astrological calculation engine not available. Please try again later."
+    )
+
+@router.post("/muhurta/personalized", response_model=PersonalizedMuhurtaResponse)
+async def find_personalized_muhurta(
+    request: PersonalizedMuhurtaRequest,
+    muhurta_engine: MuhurtaEngine = Depends(get_muhurta_engine),
+    kaal_engine = Depends(get_kaal_engine),
+    cache = Depends(get_cache),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Find personalized muhurta timing based on individual birth chart
+    
+    **Features:**
+    - **Standard Muhurta**: Traditional auspicious timing calculations
+    - **Birth Chart Integration**: Consider individual planetary positions
+    - **Personalized Scoring**: Weight factors based on natal chart strengths
+    - **Transit Analysis**: Current planetary transits affecting the individual
+    - **Custom Recommendations**: Activity-specific guidance based on personal chart
+    - **Dual Scoring**: Both standard and personalized quality scores
+    
+    **Perfect for:**
+    - Personal ceremony timing (marriage, business launch)
+    - Individualized activity planning
+    - Maximizing personal astrological support
+    - Custom event scheduling based on birth chart
+    """
+    start_time = time.time()
+    
+    try:
+        # Extract request data
+        birth_data = request.birth_data
+        activity_type = request.activity_type.value
+        start_date = request.start_date
+        end_date = request.end_date
+        location_lat = request.location_latitude
+        location_lon = request.location_longitude
+        duration_minutes = request.duration_minutes
+        max_results = request.max_results
+        
+        # Validate required fields
+        if not all([birth_data, start_date, end_date, location_lat, location_lon]):
+            raise HTTPException(
+                status_code=400,
+                detail="Missing required fields: birth_data, date range, location coordinates"
+            )
+        
+        # Use datetime objects directly (already parsed by Pydantic)
+        start_dt = start_date
+        end_dt = end_date
+        
+        # Create cache key
+        cache_key = f"personalized_muhurta_{birth_data.birth_date}_{activity_type}_{start_date}_{end_date}_{location_lat}_{location_lon}"
+        
+        # Check cache
+        cached_result = None
+        if cache:
+            try:
+                cached_result = cache.get(cache_key)
+            except:
+                pass
+        
+        if cached_result:
+            return cached_result
+        
+        # Get birth chart data
+        birth_datetime = datetime.strptime(
+            f"{birth_data.birth_date} {birth_data.birth_time}", 
+            "%Y-%m-%d %H:%M:%S"
+        )
+        
+        # Will use dependency injection for kaal_engine
+        
+        birth_panchang = kaal_engine.get_panchang(
+            lat=birth_data.birth_latitude,
+            lon=birth_data.birth_longitude,
+            dt=birth_datetime,
+            elevation=0.0,
+            ayanamsha="LAHIRI"
+        )
+        
+        # Create standard muhurta request
+        standard_request = MuhurtaRequest(
+            muhurta_type=activity_type.lower(),  # Use string directly
+            latitude=location_lat,
+            longitude=location_lon,
+            start_date=start_dt,
+            end_date=end_dt,
+            duration_minutes=duration_minutes,
+            min_quality="good",
+            max_results=max_results * 2  # Get more results for personalization
+        )
+        
+        # Get standard muhurta results
+        standard_response = await find_muhurta(standard_request, muhurta_engine, cache, db)
+        standard_results = standard_response.results
+        
+        # Personalize each result
+        personalized_results = []
+        
+        for result in standard_results:
+            # Calculate personalized score adjustments
+            personal_score = result.score
+            
+            # Get current planetary positions for this muhurta time
+            muhurta_panchang = kaal_engine.get_panchang(
+                lat=location_lat,
+                lon=location_lon,
+                dt=result.datetime,
+                elevation=0.0,
+                ayanamsha="LAHIRI"
+            )
+            
+            # Personal factors analysis
+            personal_factors = {
+                "natal_moon_sign": birth_panchang.get("rashi_of_moon", "Unknown"),
+                "natal_sun_sign": birth_panchang.get("rashi_of_sun", "Unknown"), 
+                "current_tithi_compatibility": "favorable",  # Simplified
+                "nakshatra_harmony": "moderate",  # Simplified
+                "planetary_support": []
+            }
+            
+            # Analyze planetary support
+            birth_graha = birth_panchang.get("graha_positions", {})
+            current_graha = muhurta_panchang.get("graha_positions", {})
+            
+            # Check for beneficial transits
+            transit_support = []
+            for planet in ["jupiter", "venus", "mercury"]:
+                if planet in birth_graha and planet in current_graha:
+                    # Simplified transit analysis
+                    birth_pos = birth_graha[planet].get('longitude', 0) if hasattr(birth_graha[planet], 'get') else 0
+                    current_pos = current_graha[planet].get('longitude', 0) if hasattr(current_graha[planet], 'get') else 0
+                    
+                    # If beneficial planet is in good aspect (simplified)
+                    if abs(current_pos - birth_pos) % 120 < 10:  # Rough trine check
+                        transit_support.append(f"{planet.title()} trine natal position")
+                        personal_score += 5
+            
+            personal_factors["planetary_support"] = transit_support
+            
+            # Activity-specific personalizations
+            if activity_type == "marriage":
+                # Check Venus and 7th house considerations
+                if "venus" in transit_support:
+                    personal_score += 10
+                    personal_factors["venus_support"] = "strong"
+            elif activity_type == "business":
+                # Check Mercury and Jupiter
+                if "jupiter" in transit_support:
+                    personal_score += 8
+                if "mercury" in transit_support:
+                    personal_score += 6
+                personal_factors["business_support"] = "favorable"
+            
+            # Generate personalized recommendations
+            personalized_recommendations = result.recommendations.copy()
+            
+            if transit_support:
+                personalized_recommendations.insert(0, f"Strong personal planetary support from: {', '.join(transit_support)}")
+            
+            # Activity-specific personal recommendations
+            if activity_type == "marriage" and personal_factors.get("venus_support") == "strong":
+                personalized_recommendations.append("Venus strongly supports your marital harmony at this time")
+            
+            if birth_panchang.get("rashi_of_moon") == muhurta_panchang.get("rashi_of_moon"):
+                personalized_recommendations.append("Moon returns to your birth sign - highly favorable for new beginnings")
+                personal_score += 8
+            
+            # Personalized warnings
+            personalized_warnings = result.warnings.copy()
+            
+            # Check for challenging transits
+            if "mars" in current_graha:
+                # Simplified Mars transit check
+                mars_pos = current_graha["mars"].get('longitude', 0) if hasattr(current_graha["mars"], 'get') else 0
+                if birth_graha.get("mars"):
+                    birth_mars_pos = birth_graha["mars"].get('longitude', 0) if hasattr(birth_graha["mars"], 'get') else 0
+                    if abs(mars_pos - birth_mars_pos) % 90 < 10:  # Rough square check
+                        personalized_warnings.append("Mars square natal Mars - avoid confrontational decisions")
+                        personal_score -= 5
+            
+            # Ensure score stays within bounds
+            personal_score = max(0, min(100, personal_score))
+            
+            # Create personalized result
+            personalized_result = {
+                "datetime": result.datetime.isoformat(),
+                "quality": result.quality,
+                "personal_score": round(personal_score, 1),
+                "standard_score": result.score,
+                "description": result.description,
+                "personal_factors": personal_factors,
+                "transit_support": transit_support,
+                "recommendations": personalized_recommendations,
+                "warnings": personalized_warnings
+            }
+            
+            personalized_results.append(personalized_result)
+        
+        # Sort by personalized score
+        personalized_results.sort(key=lambda x: x["personal_score"], reverse=True)
+        
+        # Limit to requested number
+        personalized_results = personalized_results[:max_results]
+        
+        # Birth chart factors summary
+        birth_chart_factors = {
+            "moon_sign": birth_panchang.get("rashi_of_moon", "Unknown"),
+            "sun_sign": birth_panchang.get("rashi_of_sun", "Unknown"),
+            "birth_nakshatra": birth_panchang.get("nakshatra", "Unknown"),
+            "key_strengths": [],  # Will be populated based on dignities
+            "considerations": [f"Born under {birth_panchang.get('nakshatra', 'Unknown')} nakshatra"]
+        }
+        
+        # Personalization notes
+        personalization_notes = [
+            f"Muhurta timing personalized for {birth_chart_factors['moon_sign']} Moon sign",
+            f"Considered natal chart from {birth_data.birth_date} {birth_data.birth_time}",
+            f"Transit analysis included for {activity_type} activity",
+            "Personal planetary support and challenges evaluated"
+        ]
+        
+        # Create response
+        response = {
+            "request_summary": {
+                "activity_type": activity_type,
+                "birth_date": birth_data.get("birth_date"),
+                "date_range": f"{start_date} to {end_date}",
+                "location": f"{location_lat}°N, {location_lon}°E",
+                "duration_minutes": duration_minutes
+            },
+            "birth_chart_factors": birth_chart_factors,
+            "results": personalized_results,
+            "total_found": len(personalized_results),
+            "personalization_notes": personalization_notes,
+            "calculation_time_ms": int((time.time() - start_time) * 1000),
+            "request_timestamp": datetime.now(timezone.utc).isoformat()
+        }
+        
+        # Cache for 1 hour
+        if cache:
+            try:
+                cache.set(cache_key, response, ttl=3600)
+            except:
+                pass
+        
+        return response
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Personalized muhurta calculation failed: {str(e)}"
+        ) 

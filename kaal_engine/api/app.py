@@ -35,6 +35,9 @@ from ..auth.models import User, UsageLog, SubscriptionTier
 # API routes
 from .routes import health, panchang, ayanamsha, festivals, muhurta, auth, analytics, webhooks
 
+# PHASE 4: Personalized astrology routes
+from .routes import horoscope, transits
+
 settings = get_settings()
 
 # Initialize engines globally
@@ -363,9 +366,23 @@ app.include_router(muhurta.router, prefix="/v1")
 app.include_router(analytics.router, prefix="/v1")
 app.include_router(webhooks.router, prefix="/v1")
 
+# PHASE 4: Personalized astrology routes
+app.include_router(horoscope.router, prefix="/v1", tags=["Phase 4: Personalized Astrology"])
+app.include_router(transits.router, prefix="/v1", tags=["Phase 4: Personalized Astrology"])
+
 # Override dependencies
 app.dependency_overrides[get_kaal_engine] = lambda: kaal_engine
 app.dependency_overrides[get_cache] = lambda: cache
+
+# Override dependencies for Phase 4 routes
+from .routes.horoscope import get_kaal_engine as horoscope_get_kaal_engine
+from .routes.transits import get_kaal_engine as transits_get_kaal_engine
+from .routes.muhurta import get_kaal_engine as muhurta_get_kaal_engine
+from .routes.panchang import get_kaal_engine as panchang_original_get_kaal_engine
+app.dependency_overrides[horoscope_get_kaal_engine] = lambda: kaal_engine
+app.dependency_overrides[transits_get_kaal_engine] = lambda: kaal_engine
+app.dependency_overrides[muhurta_get_kaal_engine] = lambda: kaal_engine
+app.dependency_overrides[panchang_original_get_kaal_engine] = lambda: kaal_engine
 
 # Root endpoint
 @app.get("/", tags=["Root"])

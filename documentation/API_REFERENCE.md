@@ -1,10 +1,13 @@
 # 🕉️ **Brahmakaal Enterprise API - Complete Documentation**
 
-**Version 1.0.0** | **Production Ready** | **July 2025**
+**Version 1.0.0** | **Production Ready** | **July 2025**  
+**NEW**: Phase 4 Personalized APIs - **In Development**
 
 ## 🎯 **Executive Summary**
 
 Brahmakaal Enterprise API is a **world-class Vedic astronomy calculation service** featuring comprehensive panchang calculations, festival calendars, muhurta analysis, and ayanamsha comparisons. Built with modern async architecture, enterprise security, and professional-grade infrastructure.
+
+**🌟 NEW**: Phase 4 introduces **personalized astrology APIs** with natal chart integration, transit analysis, and AI-powered recommendations.
 
 ### **🏆 Key Achievements**
 - **✅ Complete Authentication System** with JWT + API Keys
@@ -14,6 +17,7 @@ Brahmakaal Enterprise API is a **world-class Vedic astronomy calculation service
 - **✅ Professional Documentation** with OpenAPI/Swagger integration
 - **✅ Enterprise Security** with CORS, middleware stack, and input validation
 - **✅ Analytics & Usage Tracking** for billing and performance monitoring
+- **🆕 Phase 4 Development Started**: Personalized astrology features in development
 
 ---
 
@@ -130,14 +134,162 @@ GET /v1/admin/users/{id}/analytics  # User-specific analytics
 
 ---
 
-## 💎 **Subscription Tiers & Features**
+## 🌟 **NEW: Phase 4 Personalized APIs (In Development)**
 
-| Tier | Price | Req/Min | Req/Day | Features |
-|------|-------|---------|---------|----------|
-| **Free** | $0 | 10 | 100 | Basic APIs, JSON export |
-| **Basic** | $29/mo | 60 | 5,000 | All APIs, iCal export, historical data |
-| **Premium** | $99/mo | 300 | 50,000 | All formats, webhooks, batch processing |
-| **Enterprise** | $299/mo | 1,000 | 200,000 | Custom integration, SLA, dedicated support |
+### **👤 User Profile & Preferences Management**
+```bash
+# Store user birth data and astrological preferences
+POST /v1/users/preferences
+{
+  "birth_date": "1990-01-15",
+  "birth_time": "14:30:00",
+  "birth_latitude": 28.6139,
+  "birth_longitude": 77.2090,
+  "birth_timezone": "Asia/Kolkata",
+  "birth_location_name": "New Delhi, India",
+  "privacy_settings": {
+    "allow_data_analysis": true,
+    "share_anonymized_insights": false
+  }
+}
+
+# Retrieve user astrological profile
+GET /v1/users/preferences
+```
+
+### **🌟 Personalized Daily Panchang**
+```bash
+# Personalized panchang with birth chart integration
+POST /v1/panchang/personalized
+{
+  "user_profile_id": "uuid-or-birth-details",
+  "target_date": "2025-07-15",
+  "include_transit_analysis": true,
+  "recommendation_depth": "detailed"
+}
+
+# Response includes:
+# - Standard panchang data
+# - Personalized favorable/unfavorable periods
+# - Daily guidance based on natal chart
+# - Recommended and avoided activities
+# - Transit highlights affecting the user
+```
+
+### **🔮 Natal Chart Generation**
+```bash
+# Complete birth chart generation with insights
+POST /v1/horoscope/natal-chart
+{
+  "birth_date": "1990-01-15",
+  "birth_time": "14:30:00",
+  "birth_latitude": 28.6139,
+  "birth_longitude": 77.2090,
+  "ayanamsha": "LAHIRI",
+  "include_insights": true
+}
+
+# Returns:
+# - Ascendant, Moon sign, Sun sign
+# - Planetary positions in signs, houses, nakshatras
+# - Key personality insights and life themes
+# - Planetary strengths and aspects
+# - Traditional yogas and their effects
+```
+
+### **🌍 Daily Transit Analysis**
+```bash
+# Planetary transit analysis against natal chart
+POST /v1/transits/daily
+{
+  "user_profile_id": "uuid-here",
+  "analysis_date": "2025-07-15",
+  "include_predictions": true,
+  "transit_types": ["beneficial", "challenging", "neutral"]
+}
+
+# Returns:
+# - Current planetary positions vs natal chart
+# - Active transit aspects and their effects
+# - Timeline of upcoming transits
+# - Life area impacts and recommendations
+```
+
+### **⏰ Personalized Muhurta Timing**
+```bash
+# Personalized auspicious timing recommendations
+POST /v1/muhurta/personalized
+{
+  "user_profile_id": "uuid-here",
+  "activity_type": "MARRIAGE",
+  "start_date": "2025-08-01",
+  "end_date": "2025-08-31",
+  "duration_minutes": 180,
+  "custom_preferences": {
+    "avoid_saturday": true,
+    "prefer_morning": true
+  }
+}
+
+# Returns muhurta times optimized for individual birth chart
+```
+
+### **🤖 AI-Powered Daily Recommendations**
+```bash
+# Machine learning-powered personalized insights
+POST /v1/recommendations/daily
+{
+  "user_profile_id": "uuid-here",
+  "recommendation_date": "2025-07-15",
+  "categories": ["general", "career", "relationships", "health"],
+  "detail_level": "comprehensive"
+}
+
+# Returns:
+# - AI-generated daily guidance
+# - Personalized activity recommendations
+# - Timing suggestions based on current transits
+# - Learning insights from user behavior
+```
+
+### **📊 Enhanced User Analytics**
+```bash
+# Personalized usage analytics and engagement tracking
+GET /v1/analytics/user-engagement?user_id={id}&days=30
+
+# Returns:
+# - Personalized API usage patterns
+# - Feature adoption and preferences
+# - Recommendation effectiveness metrics
+# - User satisfaction and feedback data
+```
+
+---
+
+## 💎 **Updated Subscription Tiers & Features**
+
+| Tier | Price | Req/Min | Req/Day | Standard Features | **NEW: Personalized Features** |
+|------|-------|---------|---------|-------------------|--------------------------------|
+| **Free** | $0 | 10 | 100 | Basic APIs, JSON export | ❌ No personalized features |
+| **Basic** | $29/mo | 60 | 5,000 | All APIs, iCal export | ❌ No personalized features |
+| **Premium** | $99/mo | 300 | 50,000 | All formats, webhooks | ✅ **Basic personalized APIs** |
+| **Enterprise** | $299/mo | 1,000 | 200,000 | Custom integration, SLA | ✅ **Full personalized suite + AI** |
+
+### **🌟 New Personalized Features by Tier**
+
+#### **Premium Tier Personalized Features**
+- ✅ User profile storage and management
+- ✅ Basic natal chart generation
+- ✅ Personalized daily panchang (limited)
+- ✅ Simple transit analysis
+
+#### **Enterprise Tier Personalized Features**
+- ✅ Complete natal chart with detailed insights
+- ✅ Advanced personalized muhurta recommendations
+- ✅ AI-powered daily recommendations
+- ✅ Comprehensive transit analysis
+- ✅ Personalized analytics and engagement tracking
+- ✅ Priority support for personalized features
 
 ---
 
@@ -222,6 +374,100 @@ X-API-Key: bk_live_abc123...
 ```
 
 ---
+
+## 📊 **Sample Personalized API Responses**
+
+### **Personalized Daily Panchang Response**
+```json
+{
+  "basic_panchang": {
+    "tithi": "Dwadashi",
+    "nakshatra": "Pushya",
+    "yoga": "Dhruva",
+    "sunrise": "2025-07-15T06:45:23.000Z"
+  },
+  "personalized_insights": {
+    "favorable_periods": [
+      {
+        "start": "06:00",
+        "end": "08:30", 
+        "activity": "meditation",
+        "strength": "high",
+        "reason": "jupiter_trine_natal_moon"
+      }
+    ],
+    "unfavorable_periods": [
+      {
+        "start": "12:00",
+        "end": "14:00",
+        "reason": "mars_square_natal_sun",
+        "severity": "medium"
+      }
+    ],
+    "daily_guidance": "Strong lunar influence enhances your intuitive abilities today. Jupiter's beneficial aspect to your natal Moon brings emotional harmony and family blessings.",
+    "recommended_activities": ["spiritual practices", "family time", "creative work"],
+    "avoid_activities": ["major confrontations", "risky investments"]
+  }
+}
+```
+
+### **Natal Chart Response**
+```json
+{
+  "chart_data": {
+    "ascendant": {"sign": "Aries", "degree": 15.67},
+    "planetary_positions": {
+      "sun": {
+        "sign": "Capricorn",
+        "degree": 25.34,
+        "house": 10,
+        "nakshatra": "Dhanishta",
+        "dignity": "neutral"
+      },
+      "moon": {
+        "sign": "Cancer", 
+        "degree": 12.89,
+        "house": 4,
+        "nakshatra": "Pushya",
+        "dignity": "exalted"
+      }
+    }
+  },
+  "key_insights": {
+    "personality_traits": ["ambitious", "intuitive", "leadership-oriented"],
+    "life_themes": ["career achievement", "family focus", "spiritual growth"],
+    "strengths": ["natural leadership", "emotional intelligence", "determination"],
+    "challenges": ["work-life balance", "overthinking tendencies"]
+  },
+  "planetary_yogas": [
+    {
+      "name": "Chandra_Mangal_Yoga",
+      "strength": "moderate",
+      "effects": ["financial prosperity", "property acquisition"]
+    }
+  ]
+}
+```
+
+---
+
+## 🔒 **Enhanced Privacy & Security for Personalized Features**
+
+### **Birth Data Protection**
+- **🔐 End-to-End Encryption**: All birth data encrypted with user-specific keys
+- **🗄️ Secure Storage**: Birth charts cached with advanced encryption
+- **🔑 Access Control**: User-controlled data sharing permissions
+- **🌍 GDPR Compliance**: Full European data protection compliance
+
+### **AI & ML Security**
+- **🤖 Model Protection**: AI recommendation algorithms secured against reverse engineering
+- **📊 Anonymized Training**: AI models trained on anonymized data only
+- **🎯 Bias Prevention**: Regular audits for algorithmic fairness
+- **🛡️ Ethical Guidelines**: Transparent and responsible AI recommendations
+
+---
+
+**📋 See [PHASE4_PERSONALIZED_ROADMAP.md](PHASE4_PERSONALIZED_ROADMAP.md) for complete Phase 4 development details**
 
 ## 🛠️ **Development & Deployment**
 

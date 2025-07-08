@@ -256,4 +256,177 @@ class ErrorResponse(BaseModel):
     message: str = Field(..., description="Error message")
     details: Optional[Dict[str, Any]] = Field(None, description="Error details")
     timestamp: DateTime = Field(..., description="Error timestamp")
-    request_id: Optional[str] = Field(None, description="Request ID for tracking") 
+    request_id: Optional[str] = Field(None, description="Request ID for tracking")
+
+# =============================================================================
+# PHASE 4: PERSONALIZED ASTROLOGY MODELS
+# =============================================================================
+
+class BirthData(BaseModel):
+    """Birth data for personalized calculations"""
+    birth_date: Date = Field(..., description="Date of birth")
+    birth_time: str = Field(..., description="Time of birth in HH:MM:SS format")
+    birth_latitude: float = Field(..., ge=-90, le=90, description="Birth location latitude")
+    birth_longitude: float = Field(..., ge=-180, le=180, description="Birth location longitude")
+    birth_timezone: Optional[str] = Field("UTC", description="Birth timezone (e.g., 'Asia/Kolkata')")
+    birth_location_name: Optional[str] = Field(None, description="Birth location name")
+
+# Natal Chart Models
+class PlanetaryInfo(BaseModel):
+    """Detailed planetary information"""
+    sign: str = Field(..., description="Zodiac sign")
+    degree: float = Field(..., description="Degree within sign")
+    house: int = Field(..., description="House number (1-12)")
+    nakshatra: str = Field(..., description="Nakshatra")
+    dignity: str = Field(..., description="Planetary dignity (exalted, own, neutral, debilitated)")
+    retrograde: bool = Field(False, description="Is planet retrograde")
+
+class YogaInfo(BaseModel):
+    """Yoga information"""
+    name: str = Field(..., description="Yoga name")
+    strength: str = Field(..., description="Yoga strength (strong, moderate, weak)")
+    description: str = Field(..., description="Yoga description")
+    effects: List[str] = Field(..., description="Expected effects")
+
+class NatalChartRequest(BaseModel):
+    """Request for natal chart generation"""
+    birth_data: BirthData = Field(..., description="Birth information")
+    ayanamsha: AyanamshaSystem = Field(AyanamshaSystem.LAHIRI, description="Ayanamsha system")
+    include_insights: bool = Field(True, description="Include personality insights")
+    include_yogas: bool = Field(True, description="Include yoga calculations")
+
+class NatalChartResponse(BaseModel):
+    """Natal chart calculation response"""
+    birth_details: BirthData = Field(..., description="Birth information used")
+    chart_data: Dict[str, Any] = Field(..., description="Complete chart data")
+    planetary_positions: Dict[str, PlanetaryInfo] = Field(..., description="All planetary positions")
+    house_cusps: List[float] = Field(..., description="House cusp degrees")
+    ascendant: PlanetaryInfo = Field(..., description="Ascendant information")
+    
+    # Optional insights
+    key_insights: Optional[Dict[str, Any]] = Field(None, description="Personality and life insights")
+    planetary_yogas: Optional[List[YogaInfo]] = Field(None, description="Detected yogas")
+    planetary_strengths: Optional[Dict[str, Any]] = Field(None, description="Planetary strength analysis")
+    
+    # Metadata
+    calculation_time_ms: int = Field(..., description="Calculation time in milliseconds")
+    ayanamsha_used: str = Field(..., description="Ayanamsha system used")
+    request_timestamp: DateTime = Field(..., description="Request timestamp")
+
+# Personalized Panchang Models
+class PersonalizedPeriod(BaseModel):
+    """Personalized favorable/unfavorable period"""
+    start_time: str = Field(..., description="Start time (HH:MM)")
+    end_time: str = Field(..., description="End time (HH:MM)")
+    activity_type: str = Field(..., description="Recommended activity type")
+    strength: str = Field(..., description="Strength level (high, medium, low)")
+    reason: str = Field(..., description="Astrological reason")
+    transit_influence: Optional[str] = Field(None, description="Current transit influence")
+
+class PersonalizedInsights(BaseModel):
+    """Personalized astrological insights"""
+    favorable_periods: List[PersonalizedPeriod] = Field(..., description="Favorable time periods")
+    unfavorable_periods: List[PersonalizedPeriod] = Field(..., description="Periods to avoid")
+    daily_guidance: str = Field(..., description="Personalized daily guidance")
+    recommended_activities: List[str] = Field(..., description="Recommended activities")
+    avoid_activities: List[str] = Field(..., description="Activities to avoid")
+    energy_level: str = Field(..., description="Overall energy level (high, medium, low)")
+    emotional_state: str = Field(..., description="Expected emotional state")
+
+class TransitHighlight(BaseModel):
+    """Current transit highlight"""
+    transit_type: str = Field(..., description="Type of transit")
+    transiting_planet: str = Field(..., description="Planet making the transit")
+    natal_planet: str = Field(..., description="Natal planet being affected")
+    aspect_type: str = Field(..., description="Type of aspect")
+    impact: str = Field(..., description="Expected impact (beneficial, challenging, neutral)")
+    duration: str = Field(..., description="Duration of influence")
+
+class PersonalizedPanchangRequest(BaseModel):
+    """Request for personalized panchang"""
+    birth_data: BirthData = Field(..., description="Birth information")
+    target_date: Date = Field(..., description="Date for personalized panchang")
+    target_time: Optional[str] = Field("12:00:00", description="Time for calculation")
+    location_latitude: float = Field(..., ge=-90, le=90, description="Current location latitude")
+    location_longitude: float = Field(..., ge=-180, le=180, description="Current location longitude")
+    ayanamsha: AyanamshaSystem = Field(AyanamshaSystem.LAHIRI, description="Ayanamsha system")
+    include_transit_analysis: bool = Field(True, description="Include transit analysis")
+    recommendation_depth: str = Field("standard", description="Depth level (basic, standard, detailed)")
+
+class PersonalizedPanchangResponse(BaseModel):
+    """Personalized panchang response"""
+    basic_panchang: PanchangResponse = Field(..., description="Standard panchang data")
+    personalized_insights: PersonalizedInsights = Field(..., description="Personalized insights")
+    transit_highlights: List[TransitHighlight] = Field(..., description="Current transit influences")
+    birth_chart_summary: Dict[str, Any] = Field(..., description="Relevant birth chart info")
+    calculation_time_ms: int = Field(..., description="Total calculation time")
+    request_timestamp: DateTime = Field(..., description="Request timestamp")
+
+# Transit Analysis Models
+class TransitAspect(BaseModel):
+    """Individual transit aspect"""
+    transiting_planet: str = Field(..., description="Planet making the transit")
+    aspect_type: str = Field(..., description="Type of aspect (conjunction, trine, square, etc.)")
+    natal_planet: str = Field(..., description="Natal planet being aspected")
+    exactness: str = Field(..., description="How exact the aspect is")
+    peak_date: Optional[Date] = Field(None, description="Date when aspect is most exact")
+    duration_days: int = Field(..., description="Duration of influence in days")
+    impact_rating: str = Field(..., description="Impact rating (highly beneficial, beneficial, neutral, challenging, difficult)")
+    life_areas: List[str] = Field(..., description="Life areas affected")
+    recommendations: List[str] = Field(..., description="Specific recommendations")
+
+class DailyTransitRequest(BaseModel):
+    """Request for daily transit analysis"""
+    birth_data: BirthData = Field(..., description="Birth information")
+    analysis_date: Date = Field(..., description="Date for transit analysis")
+    ayanamsha: AyanamshaSystem = Field(AyanamshaSystem.LAHIRI, description="Ayanamsha system")
+    include_predictions: bool = Field(True, description="Include predictive insights")
+    transit_types: List[str] = Field(["all"], description="Types to include (beneficial, challenging, neutral, all)")
+
+class DailyTransitResponse(BaseModel):
+    """Daily transit analysis response"""
+    analysis_date: Date = Field(..., description="Date of analysis")
+    birth_chart_reference: Dict[str, Any] = Field(..., description="Relevant natal chart data")
+    active_transits: List[TransitAspect] = Field(..., description="Active transit aspects")
+    daily_summary: str = Field(..., description="Overall daily transit summary")
+    key_influences: List[str] = Field(..., description="Key astrological influences")
+    timing_recommendations: Dict[str, Any] = Field(..., description="Best timing for activities")
+    calculation_time_ms: int = Field(..., description="Calculation time")
+    request_timestamp: DateTime = Field(..., description="Request timestamp")
+
+# Personalized Muhurta Models
+class PersonalizedMuhurtaRequest(BaseModel):
+    """Request for personalized muhurta timing"""
+    birth_data: BirthData = Field(..., description="Birth information")
+    activity_type: MuhurtaType = Field(..., description="Type of activity")
+    start_date: DateTime = Field(..., description="Search start date")
+    end_date: DateTime = Field(..., description="Search end date")
+    location_latitude: float = Field(..., ge=-90, le=90, description="Activity location latitude")
+    location_longitude: float = Field(..., ge=-180, le=180, description="Activity location longitude")
+    duration_minutes: int = Field(60, ge=15, le=1440, description="Required duration")
+    ayanamsha: AyanamshaSystem = Field(AyanamshaSystem.LAHIRI, description="Ayanamsha system")
+    custom_preferences: Optional[Dict[str, Any]] = Field(None, description="Custom preferences")
+    min_quality: str = Field("good", description="Minimum quality level")
+    max_results: int = Field(10, ge=1, le=50, description="Maximum results")
+
+class PersonalizedMuhurtaResult(BaseModel):
+    """Personalized muhurta result"""
+    datetime: DateTime = Field(..., description="Recommended date and time")
+    quality: str = Field(..., description="Quality level")
+    personal_score: float = Field(..., description="Personalized score (0-100)")
+    standard_score: float = Field(..., description="Standard muhurta score")
+    description: str = Field(..., description="Description")
+    personal_factors: Dict[str, Any] = Field(..., description="Personal astrological factors")
+    transit_support: List[str] = Field(..., description="Supporting transits")
+    recommendations: List[str] = Field(..., description="Personalized recommendations")
+    warnings: List[str] = Field(..., description="Personalized warnings")
+
+class PersonalizedMuhurtaResponse(BaseModel):
+    """Personalized muhurta response"""
+    request_summary: Dict[str, Any] = Field(..., description="Request summary")
+    birth_chart_factors: Dict[str, Any] = Field(..., description="Relevant birth chart factors")
+    results: List[PersonalizedMuhurtaResult] = Field(..., description="Personalized muhurta results")
+    total_found: int = Field(..., description="Total results found")
+    personalization_notes: List[str] = Field(..., description="Notes about personalization")
+    calculation_time_ms: int = Field(..., description="Calculation time")
+    request_timestamp: DateTime = Field(..., description="Request timestamp") 
