@@ -1,4 +1,4 @@
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from .core import spice_loader, siddhanta, delta_t
 from .core.ayanamsha import AyanamshaEngine
 from .geo import micro_adjust
@@ -24,28 +24,91 @@ class Kaal:
         # Initialize ayanamsha engine
         self.ayanamsha_engine = AyanamshaEngine()
     
+    def _jd_to_datetime_with_timezone(self, jd: float, target_date: datetime, timezone_offset: float = None) -> datetime:
+        """
+        Convert Julian Day to datetime with proper date and timezone
+        
+        Args:
+            jd: Julian Day number  
+            target_date: The actual date from the request
+            timezone_offset: Timezone offset in hours
+        
+        Returns:
+            datetime object with correct date and timezone
+        """
+        # Apply timezone offset if provided
+        if timezone_offset is None:
+            timezone_offset = 0  # Default to UTC
+            
+        # Simple JD to datetime conversion using Astropy/Skyfield approach
+        # JD 2440587.5 = January 1, 1970 00:00:00 UTC (Unix epoch)
+        unix_epoch_jd = 2440587.5
+        
+        # Get the time part from the JD (fractional day represents hours)
+        jd_date_part = int(jd)  # Integer part is the date
+        jd_time_part = jd - jd_date_part  # Fractional part is the time
+        
+        # Convert fractional day to hours, minutes, seconds
+        total_seconds_in_day = jd_time_part * 86400.0  # 24 * 60 * 60
+        hours = int(total_seconds_in_day // 3600)
+        minutes = int((total_seconds_in_day % 3600) // 60)
+        seconds = int(total_seconds_in_day % 60)
+        microseconds = int((total_seconds_in_day % 1) * 1000000)
+        
+        # First, create the actual UTC datetime from Julian Day 
+        # JD represents the absolute time, we can't force it to a specific date
+        days_since_epoch = jd - unix_epoch_jd
+        total_seconds = days_since_epoch * 86400.0
+        
+        # Create proper UTC datetime from JD
+        dt_utc = datetime(1970, 1, 1, tzinfo=timezone.utc) + timedelta(seconds=total_seconds)
+        
+        # Extract just the time components
+        utc_time = dt_utc.time()
+        
+        # Now combine with target date to get the event time on the requested date
+        target_dt_utc = datetime.combine(
+            target_date.date(), 
+            utc_time, 
+            tzinfo=timezone.utc
+        )
+        
+        # Apply timezone offset
+        if timezone_offset != 0:
+            tz = timezone(timedelta(hours=timezone_offset))
+            dt_local = target_dt_utc.astimezone(tz)
+        else:
+            dt_local = target_dt_utc
+            
+        return dt_local
+
     def get_panchang(self, lat: float, lon: float, 
                     dt: datetime, elevation: float = 0.0, 
-                    ayanamsha: str = "LAHIRI") -> dict:
+                    ayanamsha: str = "LAHIRI", timezone_offset: float = None) -> dict:
         """
         Complete Panchang calculation with 50+ Vedic parameters including traditional features
         """
         jd_utc = self._julian_day(dt)
         jd_tt = delta_t.utc_to_tt(jd_utc)
         
+        # Calculate timezone offset if not provided
+        if timezone_offset is None:
+            # Calculate from longitude (15 degrees = 1 hour)
+            timezone_offset = lon / 15.0
+        
         # Get planetary positions
         planetary_data = self._get_planetary_positions(jd_tt, ayanamsha)
         sun_long = planetary_data['sun']['longitude']
         moon_long = planetary_data['moon']['longitude']
         
-        # Calculate solar times
-        solar_times = self._calculate_solar_times(jd_tt, lat, lon, elevation)
+        # Calculate solar times with proper datetime conversion
+        solar_times = self._calculate_solar_times(jd_tt, lat, lon, elevation, dt, timezone_offset)
         
-        # Calculate lunar times  
-        lunar_times = self._calculate_lunar_times(jd_tt, lat, lon)
+        # Calculate lunar times with proper datetime conversion
+        lunar_times = self._calculate_lunar_times(jd_tt, lat, lon, dt, timezone_offset)
         
-        # Calculate time periods
-        time_periods = self._calculate_time_periods(solar_times, lat, lon, dt)
+        # Calculate time periods with proper datetime conversion
+        time_periods = self._calculate_time_periods(solar_times, lat, lon, dt, timezone_offset)
         
         # Calculate end times for tithi and nakshatra
         tithi_end_data = self._calculate_tithi_end_time(sun_long, moon_long, jd_tt)
@@ -470,40 +533,53 @@ class Kaal:
         
         return positions
     
-    def _calculate_solar_times(self, jd_tt: float, lat: float, lon: float, elevation: float) -> dict:
-        """Calculate sunrise, sunset, solar noon, and day length"""
-        sunrise = micro_adjust.true_sunrise(jd_tt, lat, lon, elevation)
-        sunset = micro_adjust.true_sunset(jd_tt, lat, lon, elevation)
-        solar_noon = (sunrise + sunset) / 2
-        day_length = (sunset - sunrise) * 24  # in hours
+    def _calculate_solar_times(self, jd_tt: float, lat: float, lon: float, elevation: float, 
+                              target_date: datetime, timezone_offset: float) -> dict:
+        """Calculate sunrise, sunset, solar noon, and day length with proper datetime conversion"""
+        # Get Julian Day times
+        sunrise_jd = micro_adjust.true_sunrise(jd_tt, lat, lon, elevation)
+        sunset_jd = micro_adjust.true_sunset(jd_tt, lat, lon, elevation)
+        solar_noon_jd = (sunrise_jd + sunset_jd) / 2
+        day_length = (sunset_jd - sunrise_jd) * 24  # in hours
+        
+        # Convert to proper datetime objects with timezone
+        sunrise_dt = self._jd_to_datetime_with_timezone(sunrise_jd, target_date, timezone_offset)
+        sunset_dt = self._jd_to_datetime_with_timezone(sunset_jd, target_date, timezone_offset)
+        solar_noon_dt = self._jd_to_datetime_with_timezone(solar_noon_jd, target_date, timezone_offset)
         
         return {
-            'sunrise': sunrise,
-            'sunset': sunset,
-            'solar_noon': solar_noon,
+            'sunrise': sunrise_dt,
+            'sunset': sunset_dt,
+            'solar_noon': solar_noon_dt,
             'day_length': day_length
         }
     
-    def _calculate_lunar_times(self, jd_tt: float, lat: float, lon: float) -> dict:
-        """Calculate moonrise and moonset times"""
-        # This is a simplified calculation - in a full implementation,
-        # we would use more sophisticated algorithms
-        moonrise = micro_adjust.calculate_moonrise(jd_tt, lat, lon)
-        moonset = micro_adjust.calculate_moonset(jd_tt, lat, lon)
+    def _calculate_lunar_times(self, jd_tt: float, lat: float, lon: float, 
+                              target_date: datetime, timezone_offset: float) -> dict:
+        """Calculate moonrise and moonset times with proper datetime conversion"""
+        # Get Julian Day times
+        moonrise_jd = micro_adjust.calculate_moonrise(jd_tt, lat, lon)
+        moonset_jd = micro_adjust.calculate_moonset(jd_tt, lat, lon)
+        
+        # Convert to proper datetime objects with timezone
+        moonrise_dt = self._jd_to_datetime_with_timezone(moonrise_jd, target_date, timezone_offset) if moonrise_jd else None
+        moonset_dt = self._jd_to_datetime_with_timezone(moonset_jd, target_date, timezone_offset) if moonset_jd else None
         
         return {
-            'moonrise': moonrise,
-            'moonset': moonset
+            'moonrise': moonrise_dt,
+            'moonset': moonset_dt
         }
     
-    def _calculate_time_periods(self, solar_times: dict, lat: float, lon: float, dt: datetime) -> dict:
-        """Calculate various time periods (Rahu Kaal, etc.)"""
-        sunrise = solar_times['sunrise']
-        sunset = solar_times['sunset']
-        day_length = sunset - sunrise
+    def _calculate_time_periods(self, solar_times: dict, lat: float, lon: float, 
+                               target_date: datetime, timezone_offset: float) -> dict:
+        """Calculate various time periods (Rahu Kaal, etc.) with proper datetime conversion"""
+        # Now solar_times contains proper datetime objects
+        sunrise_dt = solar_times['sunrise']
+        sunset_dt = solar_times['sunset']
+        solar_noon_dt = solar_times['solar_noon']
         
         # Day of week (0 = Sunday, 1 = Monday, etc.)
-        day_of_week = dt.weekday()
+        day_of_week = target_date.weekday()
         if day_of_week == 6:  # Sunday
             day_of_week = 0
         else:
@@ -513,36 +589,35 @@ class Kaal:
         rahu_periods = [4.5, 7.5, 1.5, 6, 3, 5.5, 2.5]  # Hours from sunrise for each day
         rahu_start_hours = rahu_periods[day_of_week]
         
-        rahu_start = sunrise + (rahu_start_hours / 24)
-        rahu_end = rahu_start + (1.5 / 24)  # 1.5 hours duration
+        rahu_start_dt = sunrise_dt + timedelta(hours=rahu_start_hours)
+        rahu_end_dt = rahu_start_dt + timedelta(hours=1.5)  # 1.5 hours duration
         
         # Gulika Kaal (similar calculation with different timing)
         gulika_periods = [6, 5, 4, 3, 2, 1, 7]
         gulika_start_hours = gulika_periods[day_of_week]
-        gulika_start = sunrise + (gulika_start_hours / 24)
-        gulika_end = gulika_start + (1.5 / 24)
+        gulika_start_dt = sunrise_dt + timedelta(hours=gulika_start_hours)
+        gulika_end_dt = gulika_start_dt + timedelta(hours=1.5)
         
         # Yamaganda Kaal
         yamaganda_periods = [2, 1, 7, 4.5, 6, 3, 5]
         yamaganda_start_hours = yamaganda_periods[day_of_week]
-        yamaganda_start = sunrise + (yamaganda_start_hours / 24)
-        yamaganda_end = yamaganda_start + (1.5 / 24)
+        yamaganda_start_dt = sunrise_dt + timedelta(hours=yamaganda_start_hours)
+        yamaganda_end_dt = yamaganda_start_dt + timedelta(hours=1.5)
         
         # Brahma Muhurta (96 minutes before sunrise)
-        brahma_start = sunrise - (96 / (24 * 60))
-        brahma_end = sunrise - (48 / (24 * 60))
+        brahma_start_dt = sunrise_dt - timedelta(minutes=96)
+        brahma_end_dt = sunrise_dt - timedelta(minutes=48)
         
         # Abhijit Muhurta (middle of the day)
-        solar_noon = solar_times['solar_noon']
-        abhijit_start = solar_noon - (24 / (24 * 60))  # 24 minutes before noon
-        abhijit_end = solar_noon + (24 / (24 * 60))
+        abhijit_start_dt = solar_noon_dt - timedelta(minutes=24)  # 24 minutes before noon
+        abhijit_end_dt = solar_noon_dt + timedelta(minutes=24)
         
         return {
-            'rahu_kaal': {'start': rahu_start, 'end': rahu_end},
-            'gulika_kaal': {'start': gulika_start, 'end': gulika_end},
-            'yamaganda_kaal': {'start': yamaganda_start, 'end': yamaganda_end},
-            'brahma_muhurta': {'start': brahma_start, 'end': brahma_end},
-            'abhijit_muhurta': {'start': abhijit_start, 'end': abhijit_end}
+            'rahu_kaal': {'start': rahu_start_dt, 'end': rahu_end_dt},
+            'gulika_kaal': {'start': gulika_start_dt, 'end': gulika_end_dt},
+            'yamaganda_kaal': {'start': yamaganda_start_dt, 'end': yamaganda_end_dt},
+            'brahma_muhurta': {'start': brahma_start_dt, 'end': brahma_end_dt},
+            'abhijit_muhurta': {'start': abhijit_start_dt, 'end': abhijit_end_dt}
         }
     
     def _compute_tithi(self, sun_long: float, moon_long: float) -> float:

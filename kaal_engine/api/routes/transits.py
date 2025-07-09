@@ -218,6 +218,22 @@ async def analyze_daily_transits(
         if cached_result:
             return cached_result
         
+        # Calculate timezone offset from birth_timezone string
+        def get_timezone_offset(tz_string):
+            """Convert timezone string to offset hours"""
+            tz_map = {
+                "Asia/Kolkata": 5.5,
+                "Asia/Mumbai": 5.5,
+                "Asia/Delhi": 5.5,
+                "Asia/Calcutta": 5.5,
+                "IST": 5.5,
+                "UTC": 0.0,
+                "GMT": 0.0
+            }
+            return tz_map.get(tz_string, 5.5)  # Default to IST
+        
+        timezone_offset = get_timezone_offset(birth_data.birth_timezone)
+        
         # Get natal chart positions
         birth_datetime = datetime.combine(birth_data.birth_date, datetime.strptime(birth_data.birth_time, "%H:%M:%S").time())
         natal_panchang = kaal_engine.get_panchang(
@@ -225,7 +241,8 @@ async def analyze_daily_transits(
             lon=birth_data.birth_longitude,
             dt=birth_datetime,
             elevation=0.0,
-            ayanamsha=request.ayanamsha.value
+            ayanamsha=request.ayanamsha.value,
+            timezone_offset=timezone_offset
         )
         
         # Get current transit positions
@@ -235,7 +252,8 @@ async def analyze_daily_transits(
             lon=birth_data.birth_longitude,
             dt=transit_datetime,
             elevation=0.0,
-            ayanamsha=request.ayanamsha.value
+            ayanamsha=request.ayanamsha.value,
+            timezone_offset=timezone_offset
         )
         
         # Extract planetary positions

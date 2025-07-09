@@ -262,12 +262,29 @@ async def generate_natal_chart(
         birth_datetime = datetime.combine(birth_data.birth_date, datetime.strptime(birth_data.birth_time, "%H:%M:%S").time())
         
         # Get planetary positions for birth chart
+        # Calculate timezone offset from birth_timezone string
+        def get_timezone_offset(tz_string):
+            """Convert timezone string to offset hours"""
+            tz_map = {
+                "Asia/Kolkata": 5.5,
+                "Asia/Mumbai": 5.5,
+                "Asia/Delhi": 5.5,
+                "Asia/Calcutta": 5.5,
+                "IST": 5.5,
+                "UTC": 0.0,
+                "GMT": 0.0
+            }
+            return tz_map.get(tz_string, 5.5)  # Default to IST
+        
+        timezone_offset = get_timezone_offset(birth_data.birth_timezone)
+        
         panchang_data = kaal_engine.get_panchang(
             lat=birth_data.birth_latitude,
             lon=birth_data.birth_longitude,
             dt=birth_datetime,
             elevation=0.0,
-            ayanamsha=request.ayanamsha.value
+            ayanamsha=request.ayanamsha.value,
+            timezone_offset=timezone_offset
         )
         
         # Extract planetary positions and convert to PlanetaryInfo format

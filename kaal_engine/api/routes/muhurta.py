@@ -301,7 +301,7 @@ async def find_personalized_muhurta(
     try:
         # Extract request data
         birth_data = request.birth_data
-        activity_type = request.activity_type.value
+        activity_type_str = request.activity_type.value  # String value for display/processing
         start_date = request.start_date
         end_date = request.end_date
         location_lat = request.location_latitude
@@ -321,18 +321,11 @@ async def find_personalized_muhurta(
         end_dt = end_date
         
         # Create cache key
-        cache_key = f"personalized_muhurta_{birth_data.birth_date}_{activity_type}_{start_date}_{end_date}_{location_lat}_{location_lon}"
+        cache_key = f"personalized_muhurta_{birth_data.birth_date}_{activity_type_str}_{start_date}_{end_date}_{location_lat}_{location_lon}"
         
-        # Check cache
+        # Skip cache for personalized APIs to avoid serialization issues with Pydantic models
+        # The personalized calculation is complex and better calculated fresh each time
         cached_result = None
-        if cache:
-            try:
-                cached_result = cache.get(cache_key)
-            except:
-                pass
-        
-        if cached_result:
-            return cached_result
         
         # Get birth chart data
         birth_datetime = datetime.strptime(
@@ -342,17 +335,32 @@ async def find_personalized_muhurta(
         
         # Will use dependency injection for kaal_engine
         
+        # Calculate timezone offset from birth_timezone string
+        def get_timezone_offset(tz_string):
+            """Convert timezone string to offset hours"""
+            tz_map = {
+                "Asia/Kolkata": 5.5,
+                "Asia/Mumbai": 5.5,
+                "Asia/Delhi": 5.5,
+                "Asia/Calcutta": 5.5,
+                "IST": 5.5,
+                "UTC": 0.0,
+                "GMT": 0.0
+            }
+            return tz_map.get(tz_string, 5.5)  # Default to IST
+        
         birth_panchang = kaal_engine.get_panchang(
             lat=birth_data.birth_latitude,
             lon=birth_data.birth_longitude,
             dt=birth_datetime,
             elevation=0.0,
-            ayanamsha="LAHIRI"
+            ayanamsha="LAHIRI",
+            timezone_offset=get_timezone_offset(birth_data.birth_timezone)
         )
         
         # Create standard muhurta request
         standard_request = MuhurtaRequest(
-            muhurta_type=activity_type.lower(),  # Use string directly
+            muhurta_type=request.activity_type,  # Use the enum directly
             latitude=location_lat,
             longitude=location_lon,
             start_date=start_dt,
@@ -379,7 +387,8 @@ async def find_personalized_muhurta(
                 lon=location_lon,
                 dt=result.datetime,
                 elevation=0.0,
-                ayanamsha="LAHIRI"
+                ayanamsha="LAHIRI",
+                timezone_offset=get_timezone_offset(birth_data.birth_timezone)
             )
             
             # Personal factors analysis
@@ -411,12 +420,12 @@ async def find_personalized_muhurta(
             personal_factors["planetary_support"] = transit_support
             
             # Activity-specific personalizations
-            if activity_type == "marriage":
+            if activity_type_str == "marriage":
                 # Check Venus and 7th house considerations
                 if "venus" in transit_support:
                     personal_score += 10
                     personal_factors["venus_support"] = "strong"
-            elif activity_type == "business":
+            elif activity_type_str == "business":
                 # Check Mercury and Jupiter
                 if "jupiter" in transit_support:
                     personal_score += 8
@@ -431,7 +440,7 @@ async def find_personalized_muhurta(
                 personalized_recommendations.insert(0, f"Strong personal planetary support from: {', '.join(transit_support)}")
             
             # Activity-specific personal recommendations
-            if activity_type == "marriage" and personal_factors.get("venus_support") == "strong":
+            if activity_type_str == "marriage" and personal_factors.get("venus_support") == "strong":
                 personalized_recommendations.append("Venus strongly supports your marital harmony at this time")
             
             if birth_panchang.get("rashi_of_moon") == muhurta_panchang.get("rashi_of_moon"):
@@ -488,33 +497,48 @@ async def find_personalized_muhurta(
         personalization_notes = [
             f"Muhurta timing personalized for {birth_chart_factors['moon_sign']} Moon sign",
             f"Considered natal chart from {birth_data.birth_date} {birth_data.birth_time}",
-            f"Transit analysis included for {activity_type} activity",
+            f"Transit analysis included for {activity_type_str} activity",
             "Personal planetary support and challenges evaluated"
         ]
         
-        # Create response
-        response = {
-            "request_summary": {
-                "activity_type": activity_type,
-                "birth_date": birth_data.get("birth_date"),
+        # Create response using proper Pydantic models
+        from ..models import PersonalizedMuhurtaResult, PersonalizedMuhurtaResponse
+        
+        # Convert personalized results to proper Pydantic objects
+        pydantic_results = []
+        for result in personalized_results:
+            pydantic_result = PersonalizedMuhurtaResult(
+                datetime=datetime.fromisoformat(result["datetime"].replace('Z', '+00:00')),
+                quality=result["quality"],
+                personal_score=result["personal_score"],
+                standard_score=result["standard_score"],
+                description=result["description"],
+                personal_factors=result["personal_factors"],
+                transit_support=result["transit_support"],
+                recommendations=result["recommendations"],
+                warnings=result["warnings"]
+            )
+            pydantic_results.append(pydantic_result)
+        
+        # Create proper response object
+        response = PersonalizedMuhurtaResponse(
+            request_summary={
+                "activity_type": activity_type_str,
+                "birth_date": str(birth_data.birth_date),
                 "date_range": f"{start_date} to {end_date}",
                 "location": f"{location_lat}°N, {location_lon}°E",
                 "duration_minutes": duration_minutes
             },
-            "birth_chart_factors": birth_chart_factors,
-            "results": personalized_results,
-            "total_found": len(personalized_results),
-            "personalization_notes": personalization_notes,
-            "calculation_time_ms": int((time.time() - start_time) * 1000),
-            "request_timestamp": datetime.now(timezone.utc).isoformat()
-        }
+            birth_chart_factors=birth_chart_factors,
+            results=pydantic_results,
+            total_found=len(pydantic_results),
+            personalization_notes=personalization_notes,
+            calculation_time_ms=int((time.time() - start_time) * 1000),
+            request_timestamp=datetime.now(timezone.utc)
+        )
         
-        # Cache for 1 hour
-        if cache:
-            try:
-                cache.set(cache_key, response, ttl=3600)
-            except:
-                pass
+        # Skip caching for personalized APIs - complex Pydantic objects can cause serialization issues
+        # Future enhancement: implement proper cache serialization for complex response objects
         
         return response
         

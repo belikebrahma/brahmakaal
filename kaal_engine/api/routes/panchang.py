@@ -144,13 +144,14 @@ async def calculate_panchang(
             from datetime import timedelta
             dt = dt - timedelta(hours=request.timezone_offset)
         
-        # Calculate panchang
+        # Calculate panchang with timezone offset
         panchang_data = kaal_engine.get_panchang(
             lat=request.latitude,
             lon=request.longitude,
             dt=dt,
             elevation=request.elevation,
-            ayanamsha=request.ayanamsha.value
+            ayanamsha=request.ayanamsha.value,
+            timezone_offset=request.timezone_offset
         )
         
         # Calculate processing time
@@ -474,13 +475,158 @@ async def calculate_personalized_panchang(
             timezone_offset=0.0
         )
         
-        # Get standard panchang data directly from kaal_engine
+        # Get standard panchang data and format it properly  
+        # Calculate timezone offset from birth_timezone string
+        def get_timezone_offset(tz_string):
+            """Convert timezone string to offset hours"""
+            tz_map = {
+                "Asia/Kolkata": 5.5,
+                "Asia/Mumbai": 5.5,
+                "Asia/Delhi": 5.5,
+                "Asia/Calcutta": 5.5,
+                "IST": 5.5,
+                "UTC": 0.0,
+                "GMT": 0.0
+            }
+            return tz_map.get(tz_string, 5.5)  # Default to IST
+        
+        timezone_offset = get_timezone_offset(birth_data.birth_timezone)
+        
         basic_panchang_data = kaal_engine.get_panchang(
             lat=location_lat,
             lon=location_lon,
             dt=target_datetime,
             elevation=0.0,
-            ayanamsha="LAHIRI"
+            ayanamsha="LAHIRI",
+            timezone_offset=timezone_offset
+        )
+        
+        # Format as proper PanchangResponse object
+        from ..models import (
+            PanchangResponse, TimeData, EndTimeData, TraditionalCalendarYears,
+            TarabalaData, ShoolData, PanchakaData, PlanetaryPosition
+        )
+        
+        # Create TimeData objects for time periods
+        rahu_kaal = TimeData(
+            start=basic_panchang_data['rahu_kaal']['start'],
+            end=basic_panchang_data['rahu_kaal']['end']
+        )
+        gulika_kaal = TimeData(
+            start=basic_panchang_data['gulika_kaal']['start'],
+            end=basic_panchang_data['gulika_kaal']['end']
+        )
+        yamaganda_kaal = TimeData(
+            start=basic_panchang_data['yamaganda_kaal']['start'],
+            end=basic_panchang_data['yamaganda_kaal']['end']
+        )
+        brahma_muhurta = TimeData(
+            start=basic_panchang_data['brahma_muhurta']['start'],
+            end=basic_panchang_data['brahma_muhurta']['end']
+        )
+        abhijit_muhurta = TimeData(
+            start=basic_panchang_data['abhijit_muhurta']['start'],
+            end=basic_panchang_data['abhijit_muhurta']['end']
+        )
+        
+        # Create enhanced end time data objects
+        tithi_end_time = EndTimeData(
+            end_time=basic_panchang_data.get('tithi_end_time', {}).get('end_time', target_datetime),
+            hours_remaining=basic_panchang_data.get('tithi_end_time', {}).get('hours_remaining', 0),
+            minutes_remaining=basic_panchang_data.get('tithi_end_time', {}).get('minutes_remaining', 0),
+            percentage_complete=basic_panchang_data.get('tithi_end_time', {}).get('percentage_complete', 0.0)
+        )
+        
+        nakshatra_end_time = EndTimeData(
+            end_time=basic_panchang_data.get('nakshatra_end_time', {}).get('end_time', target_datetime),
+            hours_remaining=basic_panchang_data.get('nakshatra_end_time', {}).get('hours_remaining', 0),
+            minutes_remaining=basic_panchang_data.get('nakshatra_end_time', {}).get('minutes_remaining', 0),
+            percentage_complete=basic_panchang_data.get('nakshatra_end_time', {}).get('percentage_complete', 0.0)
+        )
+        
+        # Create traditional calendar years object
+        traditional_years = TraditionalCalendarYears(
+            vikram_samvat=basic_panchang_data.get('traditional_years', {}).get('vikram_samvat', 2081),
+            shaka_samvat=basic_panchang_data.get('traditional_years', {}).get('shaka_samvat', 1946),
+            kali_yuga=basic_panchang_data.get('traditional_years', {}).get('kali_yuga', 5126),
+            bengali_san=basic_panchang_data.get('traditional_years', {}).get('bengali_san', 1431),
+            tamil_year=basic_panchang_data.get('traditional_years', {}).get('tamil_year', "Krodhi")
+        )
+        
+        # Create Tarabala data object
+        tarabala = TarabalaData(
+            tarabala=basic_panchang_data.get('tarabala', {}).get('tarabala', 'Janma'),
+            tarabala_number=basic_panchang_data.get('tarabala', {}).get('tarabala_number', 1),
+            tarabala_result=basic_panchang_data.get('tarabala', {}).get('tarabala_result', 'Neutral'),
+            chandrabala=basic_panchang_data.get('tarabala', {}).get('chandrabala', 'Average'),
+            chandrabala_points=basic_panchang_data.get('tarabala', {}).get('chandrabala_points', 3)
+        )
+        
+        # Create Shool data object
+        shool_data = ShoolData(
+            shool_direction=basic_panchang_data.get('shool_data', {}).get('shool_direction', 'North'),
+            shool_deity=basic_panchang_data.get('shool_data', {}).get('shool_deity', 'Kubera'),
+            nivas=basic_panchang_data.get('shool_data', {}).get('nivas', 'Ksheera Sagara'),
+            favorable_direction=basic_panchang_data.get('shool_data', {}).get('favorable_direction', 'South')
+        )
+        
+        # Create Panchaka data object
+        panchaka = PanchakaData(
+            panchaka_type=basic_panchang_data.get('panchaka', {}).get('panchaka_type', 'No Panchaka'),
+            panchaka_description=basic_panchang_data.get('panchaka', {}).get('panchaka_description', 'Normal period'),
+            favorable_activities=basic_panchang_data.get('panchaka', {}).get('favorable_activities', ['All normal activities']),
+            activities_to_avoid=basic_panchang_data.get('panchaka', {}).get('activities_to_avoid', ['None specific'])
+        )
+        
+        # Convert planetary positions
+        graha_positions = {}
+        for planet, data in basic_panchang_data['graha_positions'].items():
+            graha_positions[planet] = PlanetaryPosition(
+                longitude=data['longitude'],
+                latitude=data['latitude'],
+                rashi=data['rashi'],
+                nakshatra=data['nakshatra']
+            )
+        
+        # Create proper PanchangResponse object
+        basic_panchang = PanchangResponse(
+            tithi=basic_panchang_data['tithi'],
+            tithi_name=basic_panchang_data['tithi_name'],
+            tithi_end_time=tithi_end_time,
+            nakshatra=basic_panchang_data['nakshatra'],
+            nakshatra_lord=basic_panchang_data['nakshatra_lord'],
+            nakshatra_end_time=nakshatra_end_time,
+            yoga=basic_panchang_data['yoga'], 
+            yoga_name=basic_panchang_data['yoga_name'],
+            karana=basic_panchang_data['karana'],
+            karana_name=basic_panchang_data['karana_name'],
+            sunrise=basic_panchang_data['sunrise'],
+            sunset=basic_panchang_data['sunset'],
+            solar_noon=basic_panchang_data['solar_noon'],
+            day_length=basic_panchang_data['day_length'],
+            moonrise=basic_panchang_data.get('moonrise'),
+            moonset=basic_panchang_data.get('moonset'),
+            moon_phase=basic_panchang_data['moon_phase'],
+            moon_illumination=basic_panchang_data['moon_illumination'],
+            rahu_kaal=rahu_kaal,
+            gulika_kaal=gulika_kaal,
+            yamaganda_kaal=yamaganda_kaal,
+            brahma_muhurta=brahma_muhurta,
+            abhijit_muhurta=abhijit_muhurta,
+            graha_positions=graha_positions,
+            ayanamsha=basic_panchang_data['ayanamsha'],
+            local_mean_time=basic_panchang_data['local_mean_time'],
+            sidereal_time=basic_panchang_data['sidereal_time'],
+            rashi_of_moon=basic_panchang_data['rashi_of_moon'],
+            rashi_of_sun=basic_panchang_data['rashi_of_sun'],
+            season=basic_panchang_data['season'],
+            traditional_years=traditional_years,
+            tarabala=tarabala,
+            shool_data=shool_data,
+            panchaka=panchaka,
+            calculation_time_ms=int((time.time() - start_time) * 1000),
+            location={"latitude": location_lat, "longitude": location_lon},
+            request_timestamp=datetime.now(timezone.utc)
         )
         
         # Calculate birth chart positions (simplified)
@@ -494,7 +640,8 @@ async def calculate_personalized_panchang(
             lon=birth_data.birth_longitude,
             dt=birth_datetime,
             elevation=0.0,
-            ayanamsha="LAHIRI"
+            ayanamsha="LAHIRI",
+            timezone_offset=get_timezone_offset(birth_data.birth_timezone)
         )
         
         # Generate personalized insights (simplified implementation)
@@ -562,15 +709,64 @@ async def calculate_personalized_panchang(
             "ascendant": birth_panchang.get("rashi_of_ascendant", "Unknown")
         }
         
-        # Create response
-        response = {
-            "basic_panchang": basic_panchang_data,
-            "personalized_insights": personalized_insights,
-            "transit_highlights": transit_highlights,
-            "birth_chart_summary": birth_chart_summary,
-            "calculation_time_ms": int((time.time() - start_time) * 1000),
-            "request_timestamp": datetime.now(timezone.utc).isoformat()
-        }
+        # Create response using proper Pydantic models
+        from ..models import PersonalizedInsights, PersonalizedPeriod, TransitHighlight
+        
+        # Create PersonalizedPeriod objects
+        favorable_periods = [
+            PersonalizedPeriod(
+                start_time=period["start_time"],
+                end_time=period["end_time"],
+                activity_type=period["activity_type"],
+                strength=period["strength"],
+                reason=period["reason"],
+                transit_influence=period.get("transit_influence")
+            ) for period in personalized_insights["favorable_periods"]
+        ]
+        
+        unfavorable_periods = [
+            PersonalizedPeriod(
+                start_time=period["start_time"],
+                end_time=period["end_time"],
+                activity_type=period["activity_type"],
+                strength=period["strength"],
+                reason=period["reason"],
+                transit_influence=period.get("transit_influence")
+            ) for period in personalized_insights["unfavorable_periods"]
+        ]
+        
+        # Create PersonalizedInsights object
+        insights = PersonalizedInsights(
+            favorable_periods=favorable_periods,
+            unfavorable_periods=unfavorable_periods,
+            daily_guidance=personalized_insights["daily_guidance"],
+            recommended_activities=personalized_insights["recommended_activities"],
+            avoid_activities=personalized_insights["avoid_activities"],
+            energy_level=personalized_insights["energy_level"],
+            emotional_state=personalized_insights["emotional_state"]
+        )
+        
+        # Create TransitHighlight objects
+        highlights = [
+            TransitHighlight(
+                transit_type=highlight["transit_type"],
+                transiting_planet=highlight["transiting_planet"],
+                natal_planet=highlight["natal_planet"],
+                aspect_type=highlight["aspect_type"],
+                impact=highlight["impact"],
+                duration=highlight["duration"]
+            ) for highlight in transit_highlights
+        ]
+        
+        # Create final response
+        response = PersonalizedPanchangResponse(
+            basic_panchang=basic_panchang,
+            personalized_insights=insights,
+            transit_highlights=highlights,
+            birth_chart_summary=birth_chart_summary,
+            calculation_time_ms=int((time.time() - start_time) * 1000),
+            request_timestamp=datetime.now(timezone.utc)
+        )
         
         # Cache for 2 hours
         if cache:

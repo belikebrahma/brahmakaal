@@ -264,12 +264,12 @@ class ErrorResponse(BaseModel):
 
 class BirthData(BaseModel):
     """Birth data for personalized calculations"""
-    birth_date: Date = Field(..., description="Date of birth")
-    birth_time: str = Field(..., description="Time of birth in HH:MM:SS format")
-    birth_latitude: float = Field(..., ge=-90, le=90, description="Birth location latitude")
-    birth_longitude: float = Field(..., ge=-180, le=180, description="Birth location longitude")
-    birth_timezone: Optional[str] = Field("UTC", description="Birth timezone (e.g., 'Asia/Kolkata')")
-    birth_location_name: Optional[str] = Field(None, description="Birth location name")
+    birth_date: Date = Field(..., description="Date of birth", examples=["1990-05-15"])
+    birth_time: str = Field(..., description="Time of birth in HH:MM:SS format", examples=["14:30:00"])
+    birth_latitude: float = Field(..., ge=-90, le=90, description="Birth location latitude", examples=[28.6139])
+    birth_longitude: float = Field(..., ge=-180, le=180, description="Birth location longitude", examples=[77.2090])
+    birth_timezone: Optional[str] = Field("UTC", description="Birth timezone (e.g., 'Asia/Kolkata')", examples=["Asia/Kolkata"])
+    birth_location_name: Optional[str] = Field(None, description="Birth location name", examples=["New Delhi, India"])
 
 # Natal Chart Models
 class PlanetaryInfo(BaseModel):
@@ -292,8 +292,8 @@ class NatalChartRequest(BaseModel):
     """Request for natal chart generation"""
     birth_data: BirthData = Field(..., description="Birth information")
     ayanamsha: AyanamshaSystem = Field(AyanamshaSystem.LAHIRI, description="Ayanamsha system")
-    include_insights: bool = Field(True, description="Include personality insights")
-    include_yogas: bool = Field(True, description="Include yoga calculations")
+    include_insights: bool = Field(True, description="Include personality insights", examples=[True])
+    include_yogas: bool = Field(True, description="Include yoga calculations", examples=[True])
 
 class NatalChartResponse(BaseModel):
     """Natal chart calculation response"""
@@ -345,13 +345,13 @@ class TransitHighlight(BaseModel):
 class PersonalizedPanchangRequest(BaseModel):
     """Request for personalized panchang"""
     birth_data: BirthData = Field(..., description="Birth information")
-    target_date: Date = Field(..., description="Date for personalized panchang")
-    target_time: Optional[str] = Field("12:00:00", description="Time for calculation")
-    location_latitude: float = Field(..., ge=-90, le=90, description="Current location latitude")
-    location_longitude: float = Field(..., ge=-180, le=180, description="Current location longitude")
+    target_date: Date = Field(..., description="Date for personalized panchang", examples=["2025-07-09"])
+    target_time: Optional[str] = Field("12:00:00", description="Time for calculation", examples=["12:00:00"])
+    location_latitude: float = Field(..., ge=-90, le=90, description="Current location latitude", examples=[28.6139])
+    location_longitude: float = Field(..., ge=-180, le=180, description="Current location longitude", examples=[77.2090])
     ayanamsha: AyanamshaSystem = Field(AyanamshaSystem.LAHIRI, description="Ayanamsha system")
     include_transit_analysis: bool = Field(True, description="Include transit analysis")
-    recommendation_depth: str = Field("standard", description="Depth level (basic, standard, detailed)")
+    recommendation_depth: str = Field("standard", description="Depth level (basic, standard, detailed)", examples=["standard"])
 
 class PersonalizedPanchangResponse(BaseModel):
     """Personalized panchang response"""
@@ -378,10 +378,10 @@ class TransitAspect(BaseModel):
 class DailyTransitRequest(BaseModel):
     """Request for daily transit analysis"""
     birth_data: BirthData = Field(..., description="Birth information")
-    analysis_date: Date = Field(..., description="Date for transit analysis")
+    analysis_date: Date = Field(..., description="Date for transit analysis", examples=["2025-07-09"])
     ayanamsha: AyanamshaSystem = Field(AyanamshaSystem.LAHIRI, description="Ayanamsha system")
-    include_predictions: bool = Field(True, description="Include predictive insights")
-    transit_types: List[str] = Field(["all"], description="Types to include (beneficial, challenging, neutral, all)")
+    include_predictions: bool = Field(True, description="Include predictive insights", examples=[True])
+    transit_types: List[str] = Field(["all"], description="Types to include (beneficial, challenging, neutral, all)", examples=[["all"]])
 
 class DailyTransitResponse(BaseModel):
     """Daily transit analysis response"""
@@ -398,16 +398,16 @@ class DailyTransitResponse(BaseModel):
 class PersonalizedMuhurtaRequest(BaseModel):
     """Request for personalized muhurta timing"""
     birth_data: BirthData = Field(..., description="Birth information")
-    activity_type: MuhurtaType = Field(..., description="Type of activity")
-    start_date: DateTime = Field(..., description="Search start date")
-    end_date: DateTime = Field(..., description="Search end date")
-    location_latitude: float = Field(..., ge=-90, le=90, description="Activity location latitude")
-    location_longitude: float = Field(..., ge=-180, le=180, description="Activity location longitude")
-    duration_minutes: int = Field(60, ge=15, le=1440, description="Required duration")
+    activity_type: MuhurtaType = Field(..., description="Type of activity", examples=["marriage"])
+    start_date: DateTime = Field(..., description="Search start date", examples=["2025-07-09T00:00:00Z"])
+    end_date: DateTime = Field(..., description="Search end date", examples=["2025-07-12T23:59:59Z"])
+    location_latitude: float = Field(..., ge=-90, le=90, description="Activity location latitude", examples=[28.6139])
+    location_longitude: float = Field(..., ge=-180, le=180, description="Activity location longitude", examples=[77.2090])
+    duration_minutes: int = Field(60, ge=15, le=1440, description="Required duration", examples=[120])
     ayanamsha: AyanamshaSystem = Field(AyanamshaSystem.LAHIRI, description="Ayanamsha system")
-    custom_preferences: Optional[Dict[str, Any]] = Field(None, description="Custom preferences")
-    min_quality: str = Field("good", description="Minimum quality level")
-    max_results: int = Field(10, ge=1, le=50, description="Maximum results")
+    custom_preferences: Optional[Dict[str, Any]] = Field(None, description="Custom preferences", examples=[{}])
+    min_quality: str = Field("good", description="Minimum quality level", examples=["good"])
+    max_results: int = Field(10, ge=1, le=50, description="Maximum results", examples=[10])
 
 class PersonalizedMuhurtaResult(BaseModel):
     """Personalized muhurta result"""
