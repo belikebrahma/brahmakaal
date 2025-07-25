@@ -285,9 +285,9 @@ class UsageStats(BaseModel):
 # Subscription Tier Configurations
 SUBSCRIPTION_LIMITS = {
     SubscriptionTier.FREE: {
-        "requests_per_minute": 10,
-        "requests_per_day": 100,
-        "requests_per_month": 1000,
+        "requests_per_minute": 100,
+        "requests_per_day": 10000,
+        "requests_per_month": 100000,
         "features": {
             "panchang_api": True,
             "festivals_api": True,

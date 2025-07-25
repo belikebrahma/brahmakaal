@@ -24,61 +24,31 @@ class Kaal:
         # Initialize ayanamsha engine
         self.ayanamsha_engine = AyanamshaEngine()
     
-    def _jd_to_datetime_with_timezone(self, jd: float, target_date: datetime, timezone_offset: float = None) -> datetime:
+    def _jd_to_datetime_with_timezone(self, jd: float, timezone_offset: float = 0) -> datetime:
         """
-        Convert Julian Day to datetime with proper date and timezone
+        Convert Julian Day to datetime with timezone - PURE CONVERSION
         
         Args:
             jd: Julian Day number  
-            target_date: The actual date from the request
-            timezone_offset: Timezone offset in hours
+            timezone_offset: Timezone offset in hours from UTC
         
         Returns:
-            datetime object with correct date and timezone
+            datetime object representing the exact time from JD in specified timezone
         """
-        # Apply timezone offset if provided
-        if timezone_offset is None:
-            timezone_offset = 0  # Default to UTC
-            
-        # Simple JD to datetime conversion using Astropy/Skyfield approach
+        # Julian Day to UTC datetime conversion
         # JD 2440587.5 = January 1, 1970 00:00:00 UTC (Unix epoch)
         unix_epoch_jd = 2440587.5
+        seconds_since_epoch = (jd - unix_epoch_jd) * 86400.0
         
-        # Get the time part from the JD (fractional day represents hours)
-        jd_date_part = int(jd)  # Integer part is the date
-        jd_time_part = jd - jd_date_part  # Fractional part is the time
+        # Create UTC datetime from Julian Day
+        dt_utc = datetime(1970, 1, 1, tzinfo=timezone.utc) + timedelta(seconds=seconds_since_epoch)
         
-        # Convert fractional day to hours, minutes, seconds
-        total_seconds_in_day = jd_time_part * 86400.0  # 24 * 60 * 60
-        hours = int(total_seconds_in_day // 3600)
-        minutes = int((total_seconds_in_day % 3600) // 60)
-        seconds = int(total_seconds_in_day % 60)
-        microseconds = int((total_seconds_in_day % 1) * 1000000)
-        
-        # First, create the actual UTC datetime from Julian Day 
-        # JD represents the absolute time, we can't force it to a specific date
-        days_since_epoch = jd - unix_epoch_jd
-        total_seconds = days_since_epoch * 86400.0
-        
-        # Create proper UTC datetime from JD
-        dt_utc = datetime(1970, 1, 1, tzinfo=timezone.utc) + timedelta(seconds=total_seconds)
-        
-        # Extract just the time components
-        utc_time = dt_utc.time()
-        
-        # Now combine with target date to get the event time on the requested date
-        target_dt_utc = datetime.combine(
-            target_date.date(), 
-            utc_time, 
-            tzinfo=timezone.utc
-        )
-        
-        # Apply timezone offset
+        # Convert to specified timezone
         if timezone_offset != 0:
-            tz = timezone(timedelta(hours=timezone_offset))
-            dt_local = target_dt_utc.astimezone(tz)
+            target_tz = timezone(timedelta(hours=timezone_offset))
+            dt_local = dt_utc.astimezone(target_tz)
         else:
-            dt_local = target_dt_utc
+            dt_local = dt_utc
             
         return dt_local
 
@@ -96,23 +66,41 @@ class Kaal:
             # Calculate from longitude (15 degrees = 1 hour)
             timezone_offset = lon / 15.0
         
-        # Get planetary positions
-        planetary_data = self._get_planetary_positions(jd_tt, ayanamsha)
+        # Calculate solar times first to get sunrise reference time
+        solar_times = self._calculate_solar_times(jd_tt, lat, lon, elevation, dt, timezone_offset)
+        
+        # CRITICAL FIX: Use sunrise time as reference for panchang calculations (traditional method)
+        sunrise_jd = micro_adjust.true_sunrise(jd_tt, lat, lon, elevation)
+        sunrise_jd_tt = delta_t.utc_to_tt(sunrise_jd)
+        
+        # Get planetary positions at sunrise time for accurate panchang elements
+        planetary_data = self._get_planetary_positions(sunrise_jd_tt, ayanamsha)
         sun_long = planetary_data['sun']['longitude']
         moon_long = planetary_data['moon']['longitude']
         
-        # Calculate solar times with proper datetime conversion
-        solar_times = self._calculate_solar_times(jd_tt, lat, lon, elevation, dt, timezone_offset)
-        
-        # Calculate lunar times with proper datetime conversion
+        # Calculate lunar times - work in UTC, apply timezone only for final display
         lunar_times = self._calculate_lunar_times(jd_tt, lat, lon, dt, timezone_offset)
         
-        # Calculate time periods with proper datetime conversion
+        # Calculate time periods - use proper reference time for day-of-week
         time_periods = self._calculate_time_periods(solar_times, lat, lon, dt, timezone_offset)
         
-        # Calculate end times for tithi and nakshatra
-        tithi_end_data = self._calculate_tithi_end_time(sun_long, moon_long, jd_tt)
-        nakshatra_end_data = self._calculate_nakshatra_end_time(moon_long, jd_tt)
+        # Calculate end times for tithi and nakshatra using sunrise reference
+        tithi_end_data = self._calculate_tithi_end_time(sun_long, moon_long, sunrise_jd_tt, timezone_offset)
+        nakshatra_end_data = self._calculate_nakshatra_end_time(moon_long, sunrise_jd_tt, timezone_offset)
+        
+        # Calculate detailed nakshatra pada system
+        try:
+            nakshatra_pada_data = self._calculate_nakshatra_pada_system(moon_long, sunrise_jd_tt, timezone_offset)
+        except Exception as e:
+            print(f"⚠️ Nakshatra pada calculation failed: {e}")
+            nakshatra_pada_data = None
+        
+        # Calculate Ritu & Ayana system
+        try:
+            ritu_ayana_data = self._calculate_ritu_ayana_system(sun_long, solar_times, dt)
+        except Exception as e:
+            print(f"⚠️ Ritu ayana calculation failed: {e}")
+            ritu_ayana_data = None
         
         # Calculate traditional calendar years
         traditional_years = self._calculate_traditional_years(dt)
@@ -126,7 +114,7 @@ class Kaal:
         # Calculate Panchaka classification
         panchaka_data = self._calculate_panchaka(dt, moon_long)
         
-        return {
+        result = {
             # Basic Panchang Elements
             "tithi": self._compute_tithi(sun_long, moon_long),
             "tithi_name": self._get_tithi_name(self._compute_tithi(sun_long, moon_long)),
@@ -175,10 +163,16 @@ class Kaal:
             "traditional_years": traditional_years,
             "tarabala": tarabala_data,
             "shool_data": shool_data,
-            "panchaka": panchaka_data
+            "panchaka": panchaka_data,
+            
+            # NEW: Advanced systems
+            "nakshatra_detailed": nakshatra_pada_data,
+            "ritu_ayana": ritu_ayana_data
         }
+        
+        return result
     
-    def _calculate_tithi_end_time(self, sun_long: float, moon_long: float, jd_tt: float) -> dict:
+    def _calculate_tithi_end_time(self, sun_long: float, moon_long: float, jd_tt: float, timezone_offset: float = 0) -> dict:
         """Calculate exact end time for current tithi"""
         current_tithi = self._compute_tithi(sun_long, moon_long)
         next_tithi_target = math.ceil(current_tithi)
@@ -192,8 +186,9 @@ class Kaal:
         average_tithi_duration_hours = 23.62
         remaining_hours = remaining_fraction * average_tithi_duration_hours
         
-        # Calculate end time
-        end_time = datetime.utcfromtimestamp((jd_tt - 2440587.5) * 86400) + timedelta(hours=remaining_hours)
+        # Calculate end time using proper JD conversion
+        end_jd = jd_tt + (remaining_hours / 24.0)
+        end_time = self._jd_to_datetime_with_timezone(end_jd, timezone_offset)
         
         return {
             "end_time": end_time,
@@ -202,7 +197,7 @@ class Kaal:
             "percentage_complete": round(progress * 100, 1)
         }
     
-    def _calculate_nakshatra_end_time(self, moon_long: float, jd_tt: float) -> dict:
+    def _calculate_nakshatra_end_time(self, moon_long: float, jd_tt: float, timezone_offset: float = 0) -> dict:
         """Calculate exact end time for current nakshatra"""
         # Each nakshatra spans 13.333... degrees (360/27)
         nakshatra_span = 360.0 / 27.0
@@ -214,8 +209,9 @@ class Kaal:
         remaining_degrees = nakshatra_span - current_nakshatra_position
         remaining_hours = (remaining_degrees / moon_daily_motion) * 24
         
-        # Calculate end time
-        end_time = datetime.utcfromtimestamp((jd_tt - 2440587.5) * 86400) + timedelta(hours=remaining_hours)
+        # Calculate end time using proper JD conversion
+        end_jd = jd_tt + (remaining_hours / 24.0)
+        end_time = self._jd_to_datetime_with_timezone(end_jd, timezone_offset)
         
         return {
             "end_time": end_time,
@@ -443,74 +439,88 @@ class Kaal:
         
         positions = {}
         
-        # Sun
+        # Sun - Convert from tropical to sidereal
         sun_pos = earth.at(t).observe(self.sun).apparent()
-        sun_long = sun_pos.ecliptic_latlon()[0].degrees
+        sun_tropical_long = sun_pos.ecliptic_latlon()[1].degrees  # FIX: [1] is longitude, [0] is latitude
+        sun_long = self.ayanamsha_engine.tropical_to_sidereal(sun_tropical_long, jd_tt, ayanamsha)
         positions['sun'] = {
             'longitude': sun_long,
-            'latitude': sun_pos.ecliptic_latlon()[1].degrees,
+            'latitude': sun_pos.ecliptic_latlon()[0].degrees,  # FIX: [0] is latitude, [1] is longitude
             'rashi': self._get_rashi(sun_long),
-            'nakshatra': self._get_nakshatra_from_longitude(sun_long)
+            'nakshatra': self._get_nakshatra_from_longitude(sun_long),
+            'tropical_longitude': sun_tropical_long  # Keep tropical for reference
         }
         
-        # Moon
+        # Moon - Convert from tropical to sidereal  
         moon_pos = earth.at(t).observe(self.moon).apparent()
-        moon_long = moon_pos.ecliptic_latlon()[0].degrees
+        moon_tropical_long = moon_pos.ecliptic_latlon()[1].degrees  # FIX: [1] is longitude, [0] is latitude
+        moon_long = self.ayanamsha_engine.tropical_to_sidereal(moon_tropical_long, jd_tt, ayanamsha)
         positions['moon'] = {
             'longitude': moon_long,
-            'latitude': moon_pos.ecliptic_latlon()[1].degrees,
+            'latitude': moon_pos.ecliptic_latlon()[0].degrees,  # FIX: [0] is latitude, [1] is longitude
             'rashi': self._get_rashi(moon_long),
-            'nakshatra': self._get_nakshatra_from_longitude(moon_long)
+            'nakshatra': self._get_nakshatra_from_longitude(moon_long),
+            'tropical_longitude': moon_tropical_long  # Keep tropical for reference
         }
         
-        # Mars (Mangal)
+        # Mars (Mangal) - Convert from tropical to sidereal
         mars_pos = earth.at(t).observe(self.mars).apparent()
-        mars_long = mars_pos.ecliptic_latlon()[0].degrees
+        mars_tropical_long = mars_pos.ecliptic_latlon()[1].degrees  # FIX: [1] is longitude, [0] is latitude
+        mars_long = self.ayanamsha_engine.tropical_to_sidereal(mars_tropical_long, jd_tt, ayanamsha)
         positions['mars'] = {
             'longitude': mars_long,
-            'latitude': mars_pos.ecliptic_latlon()[1].degrees,
+            'latitude': mars_pos.ecliptic_latlon()[0].degrees,  # FIX: [0] is latitude, [1] is longitude
             'rashi': self._get_rashi(mars_long),
-            'nakshatra': self._get_nakshatra_from_longitude(mars_long)
+            'nakshatra': self._get_nakshatra_from_longitude(mars_long),
+            'tropical_longitude': mars_tropical_long
         }
         
-        # Mercury (Budh)
+        # Mercury (Budh) - Convert from tropical to sidereal
         mercury_pos = earth.at(t).observe(self.mercury).apparent()
-        mercury_long = mercury_pos.ecliptic_latlon()[0].degrees
+        mercury_tropical_long = mercury_pos.ecliptic_latlon()[1].degrees  # FIX: [1] is longitude, [0] is latitude
+        mercury_long = self.ayanamsha_engine.tropical_to_sidereal(mercury_tropical_long, jd_tt, ayanamsha)
         positions['mercury'] = {
             'longitude': mercury_long,
-            'latitude': mercury_pos.ecliptic_latlon()[1].degrees,
+            'latitude': mercury_pos.ecliptic_latlon()[0].degrees,  # FIX: [0] is latitude, [1] is longitude
             'rashi': self._get_rashi(mercury_long),
-            'nakshatra': self._get_nakshatra_from_longitude(mercury_long)
+            'nakshatra': self._get_nakshatra_from_longitude(mercury_long),
+            'tropical_longitude': mercury_tropical_long
         }
         
-        # Jupiter (Guru)
+        # Jupiter (Guru) - Convert from tropical to sidereal
         jupiter_pos = earth.at(t).observe(self.jupiter).apparent()
-        jupiter_long = jupiter_pos.ecliptic_latlon()[0].degrees
+        jupiter_tropical_long = jupiter_pos.ecliptic_latlon()[1].degrees  # FIX: [1] is longitude, [0] is latitude
+        jupiter_long = self.ayanamsha_engine.tropical_to_sidereal(jupiter_tropical_long, jd_tt, ayanamsha)
         positions['jupiter'] = {
             'longitude': jupiter_long,
-            'latitude': jupiter_pos.ecliptic_latlon()[1].degrees,
+            'latitude': jupiter_pos.ecliptic_latlon()[0].degrees,  # FIX: [0] is latitude, [1] is longitude
             'rashi': self._get_rashi(jupiter_long),
-            'nakshatra': self._get_nakshatra_from_longitude(jupiter_long)
+            'nakshatra': self._get_nakshatra_from_longitude(jupiter_long),
+            'tropical_longitude': jupiter_tropical_long
         }
         
-        # Venus (Shukra)
+        # Venus (Shukra) - Convert from tropical to sidereal
         venus_pos = earth.at(t).observe(self.venus).apparent()
-        venus_long = venus_pos.ecliptic_latlon()[0].degrees
+        venus_tropical_long = venus_pos.ecliptic_latlon()[1].degrees  # FIX: [1] is longitude, [0] is latitude
+        venus_long = self.ayanamsha_engine.tropical_to_sidereal(venus_tropical_long, jd_tt, ayanamsha)
         positions['venus'] = {
             'longitude': venus_long,
-            'latitude': venus_pos.ecliptic_latlon()[1].degrees,
+            'latitude': venus_pos.ecliptic_latlon()[0].degrees,  # FIX: [0] is latitude, [1] is longitude
             'rashi': self._get_rashi(venus_long),
-            'nakshatra': self._get_nakshatra_from_longitude(venus_long)
+            'nakshatra': self._get_nakshatra_from_longitude(venus_long),
+            'tropical_longitude': venus_tropical_long
         }
         
-        # Saturn (Shani)
+        # Saturn (Shani) - Convert from tropical to sidereal
         saturn_pos = earth.at(t).observe(self.saturn).apparent()
-        saturn_long = saturn_pos.ecliptic_latlon()[0].degrees
+        saturn_tropical_long = saturn_pos.ecliptic_latlon()[1].degrees  # FIX: [1] is longitude, [0] is latitude
+        saturn_long = self.ayanamsha_engine.tropical_to_sidereal(saturn_tropical_long, jd_tt, ayanamsha)
         positions['saturn'] = {
             'longitude': saturn_long,
-            'latitude': saturn_pos.ecliptic_latlon()[1].degrees,
+            'latitude': saturn_pos.ecliptic_latlon()[0].degrees,  # FIX: [0] is latitude, [1] is longitude
             'rashi': self._get_rashi(saturn_long),
-            'nakshatra': self._get_nakshatra_from_longitude(saturn_long)
+            'nakshatra': self._get_nakshatra_from_longitude(saturn_long),
+            'tropical_longitude': saturn_tropical_long
         }
         
         # Rahu (North Node) - Mean node
@@ -543,9 +553,9 @@ class Kaal:
         day_length = (sunset_jd - sunrise_jd) * 24  # in hours
         
         # Convert to proper datetime objects with timezone
-        sunrise_dt = self._jd_to_datetime_with_timezone(sunrise_jd, target_date, timezone_offset)
-        sunset_dt = self._jd_to_datetime_with_timezone(sunset_jd, target_date, timezone_offset)
-        solar_noon_dt = self._jd_to_datetime_with_timezone(solar_noon_jd, target_date, timezone_offset)
+        sunrise_dt = self._jd_to_datetime_with_timezone(sunrise_jd, timezone_offset)
+        sunset_dt = self._jd_to_datetime_with_timezone(sunset_jd, timezone_offset)
+        solar_noon_dt = self._jd_to_datetime_with_timezone(solar_noon_jd, timezone_offset)
         
         return {
             'sunrise': sunrise_dt,
@@ -562,8 +572,8 @@ class Kaal:
         moonset_jd = micro_adjust.calculate_moonset(jd_tt, lat, lon)
         
         # Convert to proper datetime objects with timezone
-        moonrise_dt = self._jd_to_datetime_with_timezone(moonrise_jd, target_date, timezone_offset) if moonrise_jd else None
-        moonset_dt = self._jd_to_datetime_with_timezone(moonset_jd, target_date, timezone_offset) if moonset_jd else None
+        moonrise_dt = self._jd_to_datetime_with_timezone(moonrise_jd, timezone_offset) if moonrise_jd else None
+        moonset_dt = self._jd_to_datetime_with_timezone(moonset_jd, timezone_offset) if moonset_jd else None
         
         return {
             'moonrise': moonrise_dt,
@@ -586,7 +596,8 @@ class Kaal:
             day_of_week += 1
         
         # Rahu Kaal calculation (traditional formula)
-        rahu_periods = [4.5, 7.5, 1.5, 6, 3, 5.5, 2.5]  # Hours from sunrise for each day
+        # Array order: [Sunday, Monday, Tuesday, Wednesday, Thursday, Friday, Saturday]
+        rahu_periods = [7.5, 1.5, 10.0, 6.0, 7.5, 4.5, 3.0]  # Hours from sunrise for each day
         rahu_start_hours = rahu_periods[day_of_week]
         
         rahu_start_dt = sunrise_dt + timedelta(hours=rahu_start_hours)
@@ -625,19 +636,33 @@ class Kaal:
         return ((moon_long - sun_long) % 360) / 12.0
     
     def _get_tithi_name(self, tithi: float) -> str:
-        """Get tithi name from tithi number"""
-        tithi_names = [
-            "Pratipad", "Dwitiya", "Tritiya", "Chaturthi", "Panchami",
+        """Get tithi name from tithi number (FIXED INDEXING)"""
+        # Shukla Paksha names (0-14)
+        shukla_names = [
+            "Pratipada", "Dwitiya", "Tritiya", "Chaturthi", "Panchami",
             "Shashthi", "Saptami", "Ashtami", "Navami", "Dashami",
-            "Ekadashi", "Dwadashi", "Trayodashi", "Chaturdashi", "Purnima/Amavasya"
+            "Ekadashi", "Dwadashi", "Trayodashi", "Chaturdashi", "Purnima"
         ]
         
-        paksha = "Shukla" if tithi < 15 else "Krishna"
-        tithi_index = int(tithi % 15)
-        if tithi_index == 0:
-            tithi_index = 15
+        # Krishna Paksha names (15-29)
+        krishna_names = [
+            "Pratipada", "Dwitiya", "Tritiya", "Chaturthi", "Panchami",
+            "Shashthi", "Saptami", "Ashtami", "Navami", "Dashami",
+            "Ekadashi", "Dwadashi", "Trayodashi", "Chaturdashi", "Amavasya"
+        ]
         
-        return f"{paksha} {tithi_names[tithi_index - 1]}"
+        if tithi < 15:
+            # Shukla Paksha (0.0-14.99)
+            tithi_index = int(tithi)
+            # Ensure we stay within bounds (0-14)
+            tithi_index = min(tithi_index, 14)
+            return f"Shukla {shukla_names[tithi_index]}"
+        else:
+            # Krishna Paksha (15.0-29.99, and handle 30.0 wrap-around)
+            tithi_index = int(tithi) - 15
+            # Ensure we stay within bounds (0-14)
+            tithi_index = min(tithi_index, 14)
+            return f"Krishna {krishna_names[tithi_index]}"
     
     def _moon_nakshatra(self, moon_long: float) -> str:
         """Get nakshatra name from moon longitude"""
@@ -820,3 +845,243 @@ class Kaal:
     def get_supported_ayanamshas(self) -> dict:
         """Get list of all supported ayanamsha systems"""
         return self.ayanamsha_engine.SUPPORTED_SYSTEMS
+
+    def _calculate_nakshatra_pada_system(self, moon_long: float, jd_tt: float, timezone_offset: float) -> dict:
+        """
+        Calculate detailed nakshatra pada system with transition times
+        
+        Args:
+            moon_long: Moon longitude in degrees
+            jd_tt: Julian Day in Terrestrial Time 
+            timezone_offset: Timezone offset in hours
+            
+        Returns:
+            Dictionary with current pada, transitions, and timing details
+        """
+
+        # Each nakshatra = 13.333° (360°/27), Each pada = 3.333° (13.333°/4)
+        NAKSHATRA_SPAN = 360.0 / 27.0  # 13.333°
+        PADA_SPAN = NAKSHATRA_SPAN / 4.0  # 3.333°
+        
+        # Nakshatra names in order
+        nakshatra_names = [
+            "Ashwini", "Bharani", "Krittika", "Rohini", "Mrigashira", "Ardra", "Punarvasu",
+            "Pushya", "Ashlesha", "Magha", "Purva Phalguni", "Uttara Phalguni", "Hasta",
+            "Chitra", "Swati", "Vishakha", "Anuradha", "Jyeshtha", "Mula", "Purva Ashadha",
+            "Uttara Ashadha", "Shravana", "Dhanishtha", "Shatabhisha", "Purva Bhadrapada",
+            "Uttara Bhadrapada", "Revati"
+        ]
+        
+        # Pada names
+        pada_names = ["First Pada", "Second Pada", "Third Pada", "Fourth Pada"]
+        
+        # Current position calculations
+        current_nakshatra_index = int(moon_long / NAKSHATRA_SPAN)
+        current_nakshatra_name = nakshatra_names[current_nakshatra_index % 27]
+        
+        # Calculate current pada
+        position_in_nakshatra = moon_long % NAKSHATRA_SPAN
+        current_pada_index = int(position_in_nakshatra / PADA_SPAN)
+        current_pada_number = current_pada_index + 1  # 1-based
+        current_pada_name = pada_names[current_pada_index]
+        
+        # Calculate current pada end time
+        current_pada_end_longitude = ((current_nakshatra_index * NAKSHATRA_SPAN) + 
+                                     ((current_pada_index + 1) * PADA_SPAN))
+        
+        # Calculate transition time to next pada
+        longitude_diff = (current_pada_end_longitude - moon_long) % 360
+        if longitude_diff > 180:
+            longitude_diff -= 360
+            
+        # Moon moves approximately 13.176° per day
+        MOON_DAILY_MOTION = 13.176
+        pada_end_jd = jd_tt + (longitude_diff / MOON_DAILY_MOTION)
+        current_pada_end_time = self._jd_to_datetime_with_timezone(pada_end_jd, timezone_offset)
+        
+        # Calculate next nakshatra and pada
+        if current_pada_index == 3:  # Fourth pada, next is new nakshatra
+            next_nakshatra_index = (current_nakshatra_index + 1) % 27
+            next_nakshatra_name = nakshatra_names[next_nakshatra_index]
+            next_pada_number = 1
+            next_pada_name = "First Pada"
+        else:
+            next_nakshatra_name = current_nakshatra_name
+            next_pada_number = current_pada_number + 1
+            next_pada_name = pada_names[current_pada_index + 1]
+        
+        # Calculate all pada transitions for current nakshatra
+        pada_transitions = []
+        for pada_idx in range(4):
+            pada_start_long = (current_nakshatra_index * NAKSHATRA_SPAN) + (pada_idx * PADA_SPAN)
+            pada_end_long = pada_start_long + PADA_SPAN
+            
+            # Calculate start time
+            start_diff = (pada_start_long - moon_long) % 360
+            if start_diff > 180:
+                start_diff -= 360
+            start_jd = jd_tt + (start_diff / MOON_DAILY_MOTION)
+            start_time = self._jd_to_datetime_with_timezone(start_jd, timezone_offset)
+            
+            # Calculate end time  
+            end_diff = (pada_end_long - moon_long) % 360
+            if end_diff > 180:
+                end_diff -= 360
+            end_jd = jd_tt + (end_diff / MOON_DAILY_MOTION)
+            end_time = self._jd_to_datetime_with_timezone(end_jd, timezone_offset)
+            
+            # Only include future padas or current pada
+            if pada_idx >= current_pada_index:
+                pada_transitions.append({
+                    "nakshatra": current_nakshatra_name,
+                    "pada": pada_idx + 1,
+                    "pada_name": pada_names[pada_idx],
+                    "start": start_time,
+                    "end": end_time,
+                    "is_current": pada_idx == current_pada_index
+                })
+        
+        # Add first pada of next nakshatra if current is in 4th pada
+        if current_pada_index == 3:
+            next_nakshatra_start_long = ((current_nakshatra_index + 1) % 27) * NAKSHATRA_SPAN
+            next_pada_end_long = next_nakshatra_start_long + PADA_SPAN
+            
+            start_diff = (next_nakshatra_start_long - moon_long) % 360
+            if start_diff > 180:
+                start_diff -= 360
+            start_jd = jd_tt + (start_diff / MOON_DAILY_MOTION)
+            start_time = self._jd_to_datetime_with_timezone(start_jd, timezone_offset)
+            
+            end_diff = (next_pada_end_long - moon_long) % 360  
+            if end_diff > 180:
+                end_diff -= 360
+            end_jd = jd_tt + (end_diff / MOON_DAILY_MOTION)
+            end_time = self._jd_to_datetime_with_timezone(end_jd, timezone_offset)
+            
+            pada_transitions.append({
+                "nakshatra": next_nakshatra_name,
+                "pada": 1,
+                "pada_name": "First Pada", 
+                "start": start_time,
+                "end": end_time,
+                "is_current": False
+            })
+        
+        return {
+            "current_nakshatra": current_nakshatra_name,
+            "current_pada": current_pada_number,
+            "current_pada_name": current_pada_name,
+            "current_pada_end": current_pada_end_time,
+            "next_nakshatra": next_nakshatra_name,
+            "next_pada": next_pada_number, 
+            "next_pada_name": next_pada_name,
+            "pada_transitions": pada_transitions[:3],  # Limit to next 3 transitions
+            "position_in_pada_percent": round(((position_in_nakshatra % PADA_SPAN) / PADA_SPAN) * 100, 1)
+        }
+
+    def _calculate_ritu_ayana_system(self, sun_long: float, solar_times: dict, dt: datetime) -> dict:
+        """
+        Calculate Ritu (Season) & Ayana (Solar movement) system
+        
+        Args:
+            sun_long: Sun longitude in degrees
+            solar_times: Dictionary with sunrise, sunset, solar_noon times
+            dt: Reference datetime
+            
+        Returns:
+            Dictionary with ritu, ayana, day/night length, and madhyahna data
+        """
+
+        # Season calculation based on sun longitude
+        # Vedic seasons are based on sun's position in zodiac
+        season_mappings = {
+            # Vasanta (Spring): Mesha & Vrishabha (0-60°)
+            "Vasanta": {"start": 0, "end": 60, "name": "Spring"},
+            # Grishma (Summer): Mithuna & Karka (60-120°) 
+            "Grishma": {"start": 60, "end": 120, "name": "Summer"},
+            # Varsha (Monsoon): Simha & Kanya (120-180°)
+            "Varsha": {"start": 120, "end": 180, "name": "Monsoon"},
+            # Sharad (Autumn): Tula & Vrishchika (180-240°)
+            "Sharad": {"start": 180, "end": 240, "name": "Autumn"},
+            # Shishira (Winter): Dhanu & Makara (240-300°)
+            "Shishira": {"start": 240, "end": 300, "name": "Winter"},
+            # Shita (Late Winter): Kumbha & Meena (300-360°)
+            "Shita": {"start": 300, "end": 360, "name": "Late Winter"}
+        }
+        
+        # Determine current season
+        current_ritu = "Unknown"
+        current_ritu_name = "Unknown"
+        
+        for ritu, data in season_mappings.items():
+            if data["start"] <= sun_long < data["end"]:
+                current_ritu = ritu
+                current_ritu_name = data["name"]
+                break
+        
+        # Handle wrap-around case for Shita season
+        if sun_long >= 300 or sun_long < 0:
+            current_ritu = "Shita"
+            current_ritu_name = "Late Winter"
+        
+        # Ayana calculation (Sun's northward/southward movement)
+        # Uttarayana: Winter Solstice to Summer Solstice (Capricorn to Cancer entry)
+        # Dakshinayana: Summer Solstice to Winter Solstice (Cancer to Capricorn entry)
+        
+        # Drik system (actual solar position)
+        if 270 <= sun_long or sun_long < 90:  # Makara to Mithuna
+            drik_ayana = "Uttarayana"
+        else:  # Karka to Dhanu
+            drik_ayana = "Dakshinayana"
+            
+        # Vedic system (traditional, approximately 23 days difference)
+        # Adjust by ayanamsha offset for traditional calculation
+        vedic_sun_long = (sun_long + 23) % 360  # Approximate traditional offset
+        if 270 <= vedic_sun_long or vedic_sun_long < 90:
+            vedic_ayana = "Uttarayana"
+        else:
+            vedic_ayana = "Dakshinayana"
+        
+        # Calculate day and night length
+        sunrise_time = solar_times.get('sunrise')
+        sunset_time = solar_times.get('sunset')
+        solar_noon_time = solar_times.get('solar_noon')
+        
+        if sunrise_time and sunset_time:
+            # Calculate day length (dinamana)
+            day_duration = sunset_time - sunrise_time
+            day_hours = day_duration.total_seconds() / 3600
+            day_length_formatted = self._format_duration(day_duration)
+            
+            # Calculate night length (ratrimana) - 24 hours minus day length
+            night_duration_seconds = (24 * 3600) - day_duration.total_seconds()
+            night_duration = timedelta(seconds=night_duration_seconds)
+            night_length_formatted = self._format_duration(night_duration)
+            
+            # Madhyahna (Solar noon) time
+            madhyahna_time = solar_noon_time.strftime("%H:%M") if solar_noon_time else "12:00"
+        else:
+            day_length_formatted = "Unknown"
+            night_length_formatted = "Unknown"
+            madhyahna_time = "12:00"
+        
+        return {
+            "drik_ritu": current_ritu,
+            "drik_ritu_name": current_ritu_name,
+            "vedic_ritu": current_ritu,  # Same for both systems typically
+            "drik_ayana": drik_ayana,
+            "vedic_ayana": vedic_ayana,
+            "dinamana": day_length_formatted,
+            "ratrimana": night_length_formatted,
+            "madhyahna": madhyahna_time,
+            "sun_longitude": round(sun_long, 2),
+            "season_progress_percent": round(((sun_long % 60) / 60) * 100, 1)
+        }
+    
+    def _format_duration(self, duration: timedelta) -> str:
+        """Format timedelta into HH:MM:SS format"""
+        total_seconds = int(duration.total_seconds())
+        hours = total_seconds // 3600
+        minutes = (total_seconds % 3600) // 60
+        seconds = total_seconds % 60
+        return f"{hours:02d}:{minutes:02d}:{seconds:02d}"

@@ -258,7 +258,7 @@ async def get_muhurta_types():
             "typical_duration": "1-2 hours",
             "key_factors": ["basic_panchang", "inauspicious_period_avoidance"]
         }
-    }
+    } 
 
 # =============================================================================
 # PHASE 4: PERSONALIZED MUHURTA ENDPOINT

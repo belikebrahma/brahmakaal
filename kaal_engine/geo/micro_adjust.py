@@ -1,111 +1,139 @@
 from skyfield.almanac import find_discrete, sunrise_sunset
-from skyfield.api import load
+from skyfield.api import load, Topos
 import math
 
 ATM_REFRACTION = 34 / 60  # 34 arcminutes
 
 def true_sunrise(jd: float, lat: float, lon: float, elev: float) -> float:
-    """Calculate precise sunrise time with elevation and refraction corrections"""
+    """Calculate precise sunrise time with elevation corrections (Skyfield already includes refraction)"""
     base_jd = _apparent_sunrise(jd, lat, lon)
-    return base_jd + _elevation_adjustment(elev) + _refraction_adjustment()
+    return base_jd - _elevation_adjustment_magnitude(elev)  # Sunrise earlier at elevation
 
 def true_sunset(jd: float, lat: float, lon: float, elev: float) -> float:
-    """Calculate precise sunset time with elevation and refraction corrections"""
+    """Calculate precise sunset time with elevation corrections (Skyfield already includes refraction)"""
     base_jd = _apparent_sunset(jd, lat, lon)
-    return base_jd + _elevation_adjustment(elev) + _refraction_adjustment()
+    return base_jd + _elevation_adjustment_magnitude(elev)  # Sunset later at elevation
 
 def calculate_moonrise(jd: float, lat: float, lon: float) -> float:
     """Calculate moonrise time for given date and location"""
     try:
         ts = load.timescale()
-        t = ts.tdb_jd(jd)
         eph = load('de421.bsp')
-        earth = eph['earth']
         moon = eph['moon']
-        topo = earth.topos(lat, lon)
+        observer = Topos(latitude_degrees=lat, longitude_degrees=lon)
         
-        # Search for moonrise within 24 hours
-        t0 = ts.tdb_jd(jd - 0.5)
-        t1 = ts.tdb_jd(jd + 0.5)
+        # Search for moonrise in extended window (moon might not rise every day)
+        t0 = ts.tdb_jd(jd - 1.0)  # Search 1 day before
+        t1 = ts.tdb_jd(jd + 1.0)  # Search 1 day after
         
-        # Simple moonrise calculation using altitude
-        times = []
-        for hour in range(48):  # Check every 30 minutes
-            test_time = t0 + hour * 0.5 / 24
-            moon_alt = topo.at(test_time).observe(moon).apparent().altaz()[0].degrees
-            if moon_alt > 0:  # Moon is above horizon
-                times.append(test_time.tdb)
+        # Look for actual rise: transition from below horizon to above horizon
+        prev_alt = None
+        rise_times = []
         
-        return times[0] if times else jd
-    except:
-        # Fallback calculation if ephemeris loading fails
-        return jd + 0.8  # Approximate moonrise time
+        # Check every 10 minutes for better precision
+        for minute in range(int(48 * 6)):  # 48 hours * 6 (10-minute intervals)
+            test_time = t0 + minute * (10.0 / (24 * 60)) 
+            # Correct Skyfield API usage: earth observation from observer position
+            earth = eph['earth']
+            moon_alt = (earth + observer).at(test_time).observe(moon).apparent().altaz()[0].degrees
+            
+            # Detect rise: previous alt < 0 and current alt >= 0
+            if prev_alt is not None and prev_alt < 0 and moon_alt >= 0:
+                # Find the closest time to the target date
+                time_diff = abs(test_time.tdb - jd)
+                rise_times.append((test_time.tdb, time_diff))
+            
+            prev_alt = moon_alt
+        
+        # Return the moonrise closest to target date
+        if rise_times:
+            rise_times.sort(key=lambda x: x[1])  # Sort by time difference
+            return rise_times[0][0]
+        
+        return None  # No moonrise found
+    except Exception as e:
+        print(f"⚠️ Moonrise calculation failed: {e}")
+        return None
 
 def calculate_moonset(jd: float, lat: float, lon: float) -> float:
     """Calculate moonset time for given date and location"""
     try:
         ts = load.timescale()
-        t = ts.tdb_jd(jd)
         eph = load('de421.bsp')
-        earth = eph['earth']
         moon = eph['moon']
-        topo = earth.topos(lat, lon)
+        observer = Topos(latitude_degrees=lat, longitude_degrees=lon)
         
-        # Search for moonset within 24 hours
-        t0 = ts.tdb_jd(jd)
-        t1 = ts.tdb_jd(jd + 1)
+        # Search for moonset in extended window
+        t0 = ts.tdb_jd(jd - 1.0)  # Search 1 day before
+        t1 = ts.tdb_jd(jd + 1.0)  # Search 1 day after
         
-        # Simple moonset calculation
-        times = []
+        # Look for actual set: transition from above horizon to below horizon
         prev_alt = None
-        for hour in range(48):
-            test_time = t0 + hour * 0.5 / 24
-            moon_alt = topo.at(test_time).observe(moon).apparent().altaz()[0].degrees
+        set_times = []
+        
+        # Check every 10 minutes for better precision
+        for minute in range(int(48 * 6)):  # 48 hours * 6 (10-minute intervals)
+            test_time = t0 + minute * (10.0 / (24 * 60))
+            # Correct Skyfield API usage: earth observation from observer position
+            earth = eph['earth']
+            moon_alt = (earth + observer).at(test_time).observe(moon).apparent().altaz()[0].degrees
+            
+            # Detect set: previous alt > 0 and current alt <= 0
             if prev_alt is not None and prev_alt > 0 and moon_alt <= 0:
-                times.append(test_time.tdb)
+                # Find the closest time to the target date
+                time_diff = abs(test_time.tdb - jd)
+                set_times.append((test_time.tdb, time_diff))
+            
             prev_alt = moon_alt
         
-        return times[0] if times else jd + 0.5
-    except:
-        # Fallback calculation
-        return jd + 0.5
+        # Return the moonset closest to target date
+        if set_times:
+            set_times.sort(key=lambda x: x[1])  # Sort by time difference
+            return set_times[0][0]
+        
+        return None  # No moonset found
+    except Exception as e:
+        print(f"⚠️ Moonset calculation failed: {e}")
+        return None
 
 def _apparent_sunrise(jd: float, lat: float, lon: float) -> float:
     """Calculate apparent sunrise without corrections"""
     try:
         ts = load.timescale()
-        t = ts.tdb_jd(jd)
         eph = load('de421.bsp')
-        earth = eph['earth']
-        topo = earth.topos(lat, lon)
+        # Use direct Topos creation - modern Skyfield approach
+        observer = Topos(latitude_degrees=lat, longitude_degrees=lon)
         
         # Calculate actual sunrise
         t0 = ts.tdb_jd(jd - 0.5)
         t1 = ts.tdb_jd(jd + 0.5)
-        t, y = find_discrete(t0, t1, sunrise_sunset(eph, topo))
+        t, y = find_discrete(t0, t1, sunrise_sunset(eph, observer))
         sunrise_times = t[y == 1]
+        print(f"🌅 Skyfield sunrise calculation succeeded")
         return sunrise_times[0].tdb if len(sunrise_times) > 0 else jd
-    except:
+    except Exception as e:
         # Fallback calculation using simplified formula
+        print(f"⚠️ Skyfield sunrise failed, using fallback: {e}")
         return _calculate_solar_time(jd, lat, lon, True)
 
 def _apparent_sunset(jd: float, lat: float, lon: float) -> float:
     """Calculate apparent sunset without corrections"""
     try:
         ts = load.timescale()
-        t = ts.tdb_jd(jd)
         eph = load('de421.bsp')
-        earth = eph['earth']
-        topo = earth.topos(lat, lon)
+        # Use direct Topos creation - modern Skyfield approach
+        observer = Topos(latitude_degrees=lat, longitude_degrees=lon)
         
         # Calculate actual sunset
         t0 = ts.tdb_jd(jd - 0.5)
         t1 = ts.tdb_jd(jd + 0.5)
-        t, y = find_discrete(t0, t1, sunrise_sunset(eph, topo))
+        t, y = find_discrete(t0, t1, sunrise_sunset(eph, observer))
         sunset_times = t[y == 0]
+        print(f"🌇 Skyfield sunset calculation succeeded")
         return sunset_times[-1].tdb if len(sunset_times) > 0 else jd + 0.5
-    except:
+    except Exception as e:
         # Fallback calculation
+        print(f"⚠️ Skyfield sunset failed, using fallback: {e}")
         return _calculate_solar_time(jd, lat, lon, False)
 
 def _calculate_solar_time(jd: float, lat: float, lon: float, is_sunrise: bool) -> float:
@@ -143,14 +171,15 @@ def _calculate_solar_time(jd: float, lat: float, lon: float, is_sunrise: bool) -
     else:
         return solar_noon + hour_angle_hours / 24.0
 
-def _elevation_adjustment(elev: float) -> float:
-    """Calculate time adjustment for observer elevation"""
+def _elevation_adjustment_magnitude(elev: float) -> float:
+    """Calculate magnitude of time adjustment for observer elevation"""
     if elev <= 0:
         return 0.0
-    # Dip of horizon formula: dip = 1.76 * sqrt(height_in_meters)
-    dip_minutes = 1.76 * math.sqrt(elev)
-    # Convert arcminutes to time (approximately 4 minutes per degree)
-    adjustment_minutes = dip_minutes / 4.0
+    # Dip of horizon formula: dip = 1.76 * sqrt(height_in_meters) in arcminutes
+    dip_arcminutes = 1.76 * math.sqrt(elev)
+    # Convert to time: 1 degree = 4 minutes of time, so 1 arcminute = 4/60 minutes of time
+    adjustment_minutes = dip_arcminutes * (4.0 / 60.0)
+    # Return positive magnitude (direction handled in sunrise/sunset functions)
     return adjustment_minutes / (24 * 60)  # Convert to days
 
 def _refraction_adjustment() -> float:

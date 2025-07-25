@@ -9,6 +9,9 @@ from typing import Optional, List, Dict, Any, Union
 from pydantic import BaseModel, Field
 from enum import Enum
 
+# Type alias for flexible time fields (datetime or human-readable string)
+TimeField = Union[DateTime, str]
+
 # Enums for API
 class AyanamshaSystem(str, Enum):
     LAHIRI = "LAHIRI"
@@ -60,13 +63,14 @@ class Region(str, Enum):
 # Request Models
 class PanchangRequest(BaseModel):
     """Request model for panchang calculation"""
-    latitude: float = Field(..., ge=-90, le=90, description="Latitude in degrees")
-    longitude: float = Field(..., ge=-180, le=180, description="Longitude in degrees")
-    date: Date = Field(..., description="Date for calculation")
-    time: Optional[str] = Field(None, description="Time in HH:MM:SS format (optional)")
-    elevation: float = Field(0.0, ge=-1000, le=10000, description="Elevation in meters")
-    ayanamsha: AyanamshaSystem = Field(AyanamshaSystem.LAHIRI, description="Ayanamsha system")
-    timezone_offset: float = Field(0.0, ge=-12, le=12, description="Timezone offset in hours")
+    latitude: float = Field(..., ge=-90, le=90, description="Latitude in degrees", examples=[28.6139])
+    longitude: float = Field(..., ge=-180, le=180, description="Longitude in degrees", examples=[77.209])
+    date: str = Field(..., description="Date in YYYY-MM-DD format", examples=["2024-03-15"])
+    time: str = Field(..., description="Time in HH:MM:SS format", examples=["14:30:00"])
+    elevation: float = Field(default=0.0, ge=-1000, le=10000, description="Elevation in meters", examples=[0.0])
+    timezone_offset: float = Field(default=5.5, description="Timezone offset from UTC in hours", examples=[5.5])
+    ayanamsha: str = Field(default="LAHIRI", description="Ayanamsha system to use", examples=["LAHIRI"])
+    human_readable_times: bool = Field(default=False, description="Return times in human-readable format (e.g., '5:41 AM' instead of ISO)", examples=[True])
 
 class MuhurtaRequest(BaseModel):
     """Request model for muhurta calculation"""
@@ -152,14 +156,14 @@ class PanchangResponse(BaseModel):
     karana_name: str = Field(..., description="Karana name")
     
     # Solar calculations
-    sunrise: DateTime = Field(..., description="Sunrise time")
-    sunset: DateTime = Field(..., description="Sunset time")
-    solar_noon: DateTime = Field(..., description="Solar noon time")
+    sunrise: TimeField = Field(..., description="Sunrise time (DateTime or human-readable string)")
+    sunset: TimeField = Field(..., description="Sunset time (DateTime or human-readable string)")
+    solar_noon: TimeField = Field(..., description="Solar noon time (DateTime or human-readable string)")
     day_length: float = Field(..., description="Day length in hours")
     
     # Lunar calculations
-    moonrise: Optional[DateTime] = Field(None, description="Moonrise time")
-    moonset: Optional[DateTime] = Field(None, description="Moonset time")
+    moonrise: Optional[TimeField] = Field(None, description="Moonrise time (DateTime or human-readable string)")
+    moonset: Optional[TimeField] = Field(None, description="Moonset time (DateTime or human-readable string)")
     moon_phase: str = Field(..., description="Moon phase")
     moon_illumination: float = Field(..., description="Moon illumination percentage")
     
@@ -186,6 +190,10 @@ class PanchangResponse(BaseModel):
     tarabala: TarabalaData = Field(..., description="Tarabala and Chandrabala calculations")
     shool_data: ShoolData = Field(..., description="Shool direction and Nivas information")
     panchaka: PanchakaData = Field(..., description="Panchaka classification")
+    
+    # NEW: Advanced systems
+    nakshatra_detailed: Optional[Dict[str, Any]] = Field(None, description="Detailed nakshatra pada system with transitions")
+    ritu_ayana: Optional[Dict[str, Any]] = Field(None, description="Seasonal and solar movement data")
     
     # Metadata
     calculation_time_ms: int = Field(..., description="Calculation time in milliseconds")
@@ -256,7 +264,7 @@ class ErrorResponse(BaseModel):
     message: str = Field(..., description="Error message")
     details: Optional[Dict[str, Any]] = Field(None, description="Error details")
     timestamp: DateTime = Field(..., description="Error timestamp")
-    request_id: Optional[str] = Field(None, description="Request ID for tracking")
+    request_id: Optional[str] = Field(None, description="Request ID for tracking") 
 
 # =============================================================================
 # PHASE 4: PERSONALIZED ASTROLOGY MODELS

@@ -47,6 +47,33 @@ def parse_time_string(time_str: str) -> str:
             return parsed_time.strftime("%H:%M:%S")
         except ValueError:
             continue
+
+def format_time_human_readable(dt_obj, timezone_offset=0.0):
+    """Format datetime object to human-readable format (e.g., '5:41 AM')"""
+    if dt_obj is None:
+        return None
+    try:
+        # If timezone_offset is provided and dt_obj is in UTC, convert to local time
+        if timezone_offset != 0.0 and dt_obj.tzinfo and dt_obj.tzinfo.utcoffset(None).total_seconds() == 0:
+            from datetime import timedelta, timezone as tz
+            local_tz = tz(timedelta(hours=timezone_offset))
+            dt_local = dt_obj.astimezone(local_tz)
+            return dt_local.strftime('%I:%M %p').lstrip('0')
+        else:
+            return dt_obj.strftime('%I:%M %p').lstrip('0')
+    except:
+        return None
+
+def format_time_data_readable(time_data_obj):
+    """Format TimeData object with human-readable times"""
+    if time_data_obj is None:
+        return None
+    
+    from ..models import TimeData
+    return TimeData(
+        start=format_time_human_readable(time_data_obj.start),
+        end=format_time_human_readable(time_data_obj.end)
+    )
     
     # If all parsing fails, return default
     return "12:00:00"
@@ -119,7 +146,7 @@ async def calculate_panchang(
                 request.longitude, 
                 request.date,
                 time_str,
-                request.ayanamsha.value,
+                request.ayanamsha,
                 request.elevation
             )
             
@@ -138,11 +165,18 @@ async def calculate_panchang(
                 detail=f"Invalid date/time format. Expected YYYY-MM-DD for date and HH:MM:SS for time. Error: {str(e)}"
             )
         
-        # Add timezone
-        dt = dt.replace(tzinfo=timezone.utc)
+        # Properly handle timezone - interpret input time as local time in specified timezone
         if request.timezone_offset != 0:
             from datetime import timedelta
-            dt = dt - timedelta(hours=request.timezone_offset)
+            # Create timezone object for the user's timezone
+            user_tz = timezone(timedelta(hours=request.timezone_offset))
+            # Treat input time as local time in user's timezone
+            dt = dt.replace(tzinfo=user_tz)
+            # Convert to UTC for astronomical calculations
+            dt = dt.astimezone(timezone.utc)
+        else:
+            # If no timezone offset, treat as UTC
+            dt = dt.replace(tzinfo=timezone.utc)
         
         # Calculate panchang with timezone offset
         panchang_data = kaal_engine.get_panchang(
@@ -150,7 +184,7 @@ async def calculate_panchang(
             lon=request.longitude,
             dt=dt,
             elevation=request.elevation,
-            ayanamsha=request.ayanamsha.value,
+            ayanamsha=request.ayanamsha,
             timezone_offset=request.timezone_offset
         )
         
@@ -241,6 +275,35 @@ async def calculate_panchang(
                 nakshatra=data['nakshatra']
             )
         
+        # Apply human-readable formatting if requested (only for individual time fields)
+        if request.human_readable_times:
+            # Format individual solar and lunar times with timezone conversion
+            sunrise_formatted = format_time_human_readable(panchang_data['sunrise'], request.timezone_offset)
+            sunset_formatted = format_time_human_readable(panchang_data['sunset'], request.timezone_offset)
+            solar_noon_formatted = format_time_human_readable(panchang_data['solar_noon'], request.timezone_offset)
+            moonrise_formatted = format_time_human_readable(panchang_data.get('moonrise'), request.timezone_offset)
+            moonset_formatted = format_time_human_readable(panchang_data.get('moonset'), request.timezone_offset)
+            
+            # Keep time periods as datetime objects (TimeData model requirement)
+            rahu_kaal_formatted = rahu_kaal
+            gulika_kaal_formatted = gulika_kaal
+            yamaganda_kaal_formatted = yamaganda_kaal
+            brahma_muhurta_formatted = brahma_muhurta
+            abhijit_muhurta_formatted = abhijit_muhurta
+        else:
+            # Use original datetime objects for all fields
+            sunrise_formatted = panchang_data['sunrise']
+            sunset_formatted = panchang_data['sunset']
+            solar_noon_formatted = panchang_data['solar_noon']
+            moonrise_formatted = panchang_data.get('moonrise')
+            moonset_formatted = panchang_data.get('moonset')
+            
+            rahu_kaal_formatted = rahu_kaal
+            gulika_kaal_formatted = gulika_kaal
+            yamaganda_kaal_formatted = yamaganda_kaal
+            brahma_muhurta_formatted = brahma_muhurta
+            abhijit_muhurta_formatted = abhijit_muhurta
+
         # Create enhanced response
         response = PanchangResponse(
             tithi=panchang_data['tithi'],
@@ -253,19 +316,19 @@ async def calculate_panchang(
             yoga_name=panchang_data['yoga_name'],
             karana=panchang_data['karana'],
             karana_name=panchang_data['karana_name'],
-            sunrise=panchang_data['sunrise'],
-            sunset=panchang_data['sunset'],
-            solar_noon=panchang_data['solar_noon'],
+            sunrise=sunrise_formatted,
+            sunset=sunset_formatted,
+            solar_noon=solar_noon_formatted,
             day_length=panchang_data['day_length'],
-            moonrise=panchang_data.get('moonrise'),
-            moonset=panchang_data.get('moonset'),
+            moonrise=moonrise_formatted,
+            moonset=moonset_formatted,
             moon_phase=panchang_data['moon_phase'],
             moon_illumination=panchang_data['moon_illumination'],
-            rahu_kaal=rahu_kaal,
-            gulika_kaal=gulika_kaal,
-            yamaganda_kaal=yamaganda_kaal,
-            brahma_muhurta=brahma_muhurta,
-            abhijit_muhurta=abhijit_muhurta,
+            rahu_kaal=rahu_kaal_formatted,
+            gulika_kaal=gulika_kaal_formatted,
+            yamaganda_kaal=yamaganda_kaal_formatted,
+            brahma_muhurta=brahma_muhurta_formatted,
+            abhijit_muhurta=abhijit_muhurta_formatted,
             graha_positions=graha_positions,
             ayanamsha=panchang_data['ayanamsha'],
             local_mean_time=panchang_data['local_mean_time'],
@@ -278,6 +341,11 @@ async def calculate_panchang(
             tarabala=tarabala,
             shool_data=shool_data,
             panchaka=panchaka,
+            
+            # NEW: Advanced systems
+            nakshatra_detailed=panchang_data.get('nakshatra_detailed'),
+            ritu_ayana=panchang_data.get('ritu_ayana'),
+            
             calculation_time_ms=calculation_time_ms,
             location={
                 "latitude": request.latitude,
@@ -300,7 +368,7 @@ async def calculate_panchang(
                 calculation_date=request.date,
                 calculation_time=dt,
                 timezone_offset=request.timezone_offset,
-                ayanamsha=request.ayanamsha.value,
+                ayanamsha=request.ayanamsha,
                 tithi=panchang_data['tithi'],
                 tithi_name=panchang_data['tithi_name'],
                 nakshatra=panchang_data['nakshatra'],
@@ -346,6 +414,7 @@ async def get_panchang(
     elevation: float = Query(0.0, ge=-1000, le=10000, description="Elevation in meters"),
     ayanamsha: str = Query("LAHIRI", description="Ayanamsha system"),
     timezone_offset: float = Query(0.0, ge=-12, le=12, description="Timezone offset in hours"),
+    human_readable_times: bool = Query(False, description="Return times in human-readable format (e.g., '5:41 AM' instead of ISO)"),
     kaal_engine: Kaal = Depends(get_kaal_engine),
     cache = Depends(get_cache),
     db: AsyncSession = Depends(get_db)
@@ -371,18 +440,16 @@ async def get_panchang(
         
         # Parse date
         if date is None:
-            calc_date = date.today()
+            from datetime import date as date_class
+            calc_date = date_class.today().strftime("%Y-%m-%d")
         else:
-            calc_date = parse_date_string(date)
+            calc_date = date  # Keep as string for PanchangRequest
         
         # Parse and validate time
         validated_time = parse_time_string(time)
         
-        # Map string to enum
-        try:
-            ayanamsha_enum = getattr(AyanamshaSystem, ayanamsha.upper(), AyanamshaSystem.LAHIRI)
-        except:
-            ayanamsha_enum = AyanamshaSystem.LAHIRI
+        # Keep ayanamsha as string (PanchangRequest expects string now)
+        validated_ayanamsha = ayanamsha.upper() if ayanamsha else "LAHIRI"
         
         request = PanchangRequest(
             latitude=latitude,
@@ -390,8 +457,9 @@ async def get_panchang(
             date=calc_date,
             time=validated_time,
             elevation=elevation,
-            ayanamsha=ayanamsha_enum,
-            timezone_offset=timezone_offset
+            ayanamsha=validated_ayanamsha,
+            timezone_offset=timezone_offset,
+            human_readable_times=human_readable_times
         )
         
         return await calculate_panchang(request, kaal_engine, cache, db)

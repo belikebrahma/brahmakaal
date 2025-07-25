@@ -100,7 +100,7 @@ async def compare_ayanamsha(
         julian_day = t.tt
         
         # Calculate all ayanamsha values
-        ayanamsha_values = ayanamsha_engine.compare_all_systems(julian_day)
+        ayanamsha_values = ayanamsha_engine.compare_systems(julian_day)
         
         # Calculate differences from Lahiri (reference system)
         lahiri_value = ayanamsha_values.get('LAHIRI', 0)

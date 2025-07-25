@@ -174,7 +174,7 @@ class MuhurtaEngine:
     
     def find_muhurta(self, request: MuhurtaRequest) -> List[MuhurtaResult]:
         """
-        Find auspicious muhurta timings for the given request
+        Find auspicious muhurta timings for the given request (OPTIMIZED)
         
         Args:
             request: MuhurtaRequest with timing requirements
@@ -185,28 +185,40 @@ class MuhurtaEngine:
         results = []
         current_time = request.start_date
         
-        # Scan through the time range in hourly intervals
+        # OPTIMIZATION 1: Use 2-hour intervals instead of 1-hour (50% reduction)
+        scan_interval = timedelta(hours=2)
+        
+        # OPTIMIZATION 2: Pre-calculate daily panchang cache
+        daily_cache = {}
+        
+        # Scan through the time range in 2-hour intervals
         while current_time <= request.end_date:
             # Skip if this time falls in excluded periods
             if self._is_excluded_period(current_time, request.exclude_periods):
-                current_time += timedelta(hours=1)
+                current_time += scan_interval
                 continue
             
-            # Calculate muhurta for this time
-            muhurta_result = self._calculate_muhurta(
+            # OPTIMIZATION 3: Quick pre-filter for obviously bad times
+            if self._quick_reject_filter(current_time):
+                current_time += scan_interval
+                continue
+            
+            # Calculate muhurta for this time with caching
+            muhurta_result = self._calculate_muhurta_cached(
                 current_time, 
                 request.muhurta_type,
                 request.latitude,
                 request.longitude,
                 request.duration_minutes,
-                request.custom_rules
+                request.custom_rules,
+                daily_cache
             )
             
             # Only include results that are at least "average" quality
             if muhurta_result.quality not in [MuhurtaQuality.POOR, MuhurtaQuality.AVOID]:
                 results.append(muhurta_result)
             
-            current_time += timedelta(hours=1)
+            current_time += scan_interval
         
         # Sort results by score (highest first)
         results.sort(key=lambda x: x.score, reverse=True)
@@ -214,26 +226,43 @@ class MuhurtaEngine:
         # Return top 20 results
         return results[:20]
     
-    def _calculate_muhurta(self, dt: datetime, muhurta_type: MuhurtaType, 
-                          lat: float, lon: float, duration_minutes: int,
-                          custom_rules: Optional[Dict] = None) -> MuhurtaResult:
-        """
-        Calculate muhurta quality for a specific date/time
+    def _quick_reject_filter(self, dt: datetime) -> bool:
+        """Quick filter to reject obviously bad times (OPTIMIZATION)"""
+        # Skip night hours (11 PM to 3 AM) for most activities - less aggressive
+        hour = dt.hour
+        if 23 <= hour or hour <= 3:
+            return True
         
-        Args:
-            dt: DateTime to analyze
-            muhurta_type: Type of muhurta calculation
-            lat: Latitude
-            lon: Longitude
-            duration_minutes: Duration of the event
-            custom_rules: Custom rules to apply
+        # Only skip Tuesday for general activities (less restrictive than before)
+        if dt.weekday() == 1:  # Tuesday=1 (keep Saturday as it can be good for some activities)
+            return True
             
-        Returns:
-            MuhurtaResult with quality assessment
-        """
-        # Get comprehensive panchang for this time
-        panchang = self.kaal.get_panchang(lat, lon, dt)
+        return False
+    
+    def _calculate_muhurta_cached(self, dt: datetime, muhurta_type: MuhurtaType, 
+                                 lat: float, lon: float, duration_minutes: int,
+                                 custom_rules: Optional[Dict] = None,
+                                 daily_cache: Optional[Dict] = None) -> MuhurtaResult:
+        """Calculate muhurta with caching optimization"""
+        # Use cache key based on date only (same panchang for whole day)
+        cache_key = f"{dt.date()}_{lat}_{lon}"
         
+        if daily_cache is not None and cache_key in daily_cache:
+            panchang = daily_cache[cache_key]
+        else:
+            # Get comprehensive panchang for this time
+            panchang = self.kaal.get_panchang(lat, lon, dt)
+            if daily_cache is not None:
+                daily_cache[cache_key] = panchang
+        
+        return self._analyze_muhurta_from_panchang(
+            dt, muhurta_type, panchang, duration_minutes, custom_rules
+        )
+    
+    def _analyze_muhurta_from_panchang(self, dt: datetime, muhurta_type: MuhurtaType,
+                                      panchang: Dict, duration_minutes: int,
+                                      custom_rules: Optional[Dict] = None) -> MuhurtaResult:
+        """Analyze muhurta from pre-calculated panchang data (OPTIMIZED)"""
         # Initialize scoring
         total_score = 0.0
         factors = {}
@@ -264,7 +293,7 @@ class MuhurtaEngine:
         factors['karana'] = karana_factors
         
         # Factor 5: Vara (Day of Week) Analysis
-        vara_score, vara_factors = self._analyze_vara(panchang, rules)
+        vara_score, vara_factors = self._analyze_vara(panchang, rules, dt)
         total_score += vara_score * self.muhurta_factors['vara']
         factors['vara'] = vara_factors
         
@@ -310,6 +339,27 @@ class MuhurtaEngine:
             duration_minutes=duration_minutes,
             description=description
         )
+    
+    def _calculate_muhurta(self, dt: datetime, muhurta_type: MuhurtaType, 
+                          lat: float, lon: float, duration_minutes: int,
+                          custom_rules: Optional[Dict] = None) -> MuhurtaResult:
+        """
+        Calculate muhurta quality for a specific date/time (Legacy method)
+        
+        Args:
+            dt: DateTime to analyze
+            muhurta_type: Type of muhurta calculation
+            lat: Latitude
+            lon: Longitude
+            duration_minutes: Duration of the event
+            custom_rules: Custom rules to apply
+            
+        Returns:
+            MuhurtaResult with quality assessment
+        """
+        # Get comprehensive panchang for this time
+        panchang = self.kaal.get_panchang(lat, lon, dt)
+        return self._analyze_muhurta_from_panchang(dt, muhurta_type, panchang, duration_minutes, custom_rules)
     
     def _get_rules_for_type(self, muhurta_type: MuhurtaType) -> Dict:
         """Get rules for specific muhurta type"""
@@ -426,9 +476,13 @@ class MuhurtaEngine:
         
         return score, factors
     
-    def _analyze_vara(self, panchang: Dict, rules: Dict) -> Tuple[float, Dict]:
+    def _analyze_vara(self, panchang: Dict, rules: Dict, dt: datetime = None) -> Tuple[float, Dict]:
         """Analyze day of week favorability"""
+        # Get vara name from panchang or calculate from datetime
         vara_name = panchang.get('vara_name', '')
+        if not vara_name and dt:
+            vara_names = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
+            vara_name = vara_names[dt.weekday()]
         
         score = 50.0  # Neutral score
         factors = {
