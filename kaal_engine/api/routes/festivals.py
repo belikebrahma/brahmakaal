@@ -90,6 +90,9 @@ async def get_festivals(
             # Try cache first
             cached_result = await cache.get(cache_key)
             if cached_result:
+                # Handle both cached dicts and old cached Pydantic models
+                if hasattr(cached_result, 'model_dump'):
+                    return cached_result.model_dump()
                 return cached_result
         
         # Convert API regions to engine regions
@@ -172,7 +175,7 @@ async def get_festivals(
         
         # Cache result
         if cache:
-            await cache.set(cache_key, response, ttl=86400)  # Cache for 24 hours
+            await cache.set(cache_key, response.model_dump(), ttl=86400)  # Cache for 24 hours
         
         # Store in database (async, don't wait)
         try:

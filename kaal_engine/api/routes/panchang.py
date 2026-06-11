@@ -154,6 +154,9 @@ async def calculate_panchang(
             # Try cache first
             cached_result = await cache.get(cache_key)
             if cached_result:
+                # Handle both cached dicts and old cached Pydantic models
+                if hasattr(cached_result, 'model_dump'):
+                    return cached_result.model_dump()
                 return cached_result
         
         # Parse datetime with validated time
@@ -356,9 +359,9 @@ async def calculate_panchang(
             request_timestamp=datetime.utcnow()
         )
         
-        # Cache result
+        # Cache result (store dict, not Pydantic model)
         if cache:
-            await cache.set(cache_key, response, data_type='panchang')
+            await cache.set(cache_key, response.model_dump(), data_type='panchang')
         
         # Store in database (async, don't wait)
         try:
@@ -556,6 +559,9 @@ async def calculate_personalized_panchang(
                 pass
         
         if cached_result:
+            # Handle both cached dicts and old cached Pydantic models
+            if hasattr(cached_result, 'model_dump'):
+                return cached_result.model_dump()
             return cached_result
         
         # Calculate standard panchang for target date
@@ -869,7 +875,7 @@ async def calculate_personalized_panchang(
         # Cache for 2 hours
         if cache:
             try:
-                await cache.set(cache_key, response, ttl=7200)
+                await cache.set(cache_key, response.model_dump(), ttl=7200)
             except:
                 pass
         
