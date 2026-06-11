@@ -7,8 +7,9 @@ services:
       context: .
       dockerfile: Dockerfile
     ports:
-      - "8000:8000"
+      - "8080:8080"  # Change left side if host port is taken
     environment:
+      - PORT=8080
       - ENVIRONMENT=production
       - DATABASE_URL=${DATABASE_URL}
       - REDIS_ENABLED=true
