@@ -54,19 +54,19 @@ Brahmakaal API provides **the most comprehensive Vedic astronomical calculations
 ### **1. Basic Panchang Request**
 
 ```bash
-curl "https://api.brahmakaal.com/v1/panchang?latitude=19.0760&longitude=72.8777&date=2025-07-25&time=12:00:00&timezone_offset=5.5"
+curl "https://kaal.brah.ma/v1/panchang?latitude=19.0760&longitude=72.8777&date=2025-07-25&time=12:00:00&timezone_offset=5.5"
 ```
 
 ### **2. With Hindi Localization**
 
 ```bash
-curl "https://api.brahmakaal.com/v1/panchang?latitude=19.0760&longitude=72.8777&date=2025-07-25&language=hi"
+curl "https://kaal.brah.ma/v1/panchang?latitude=19.0760&longitude=72.8777&date=2025-07-25&language=hi"
 ```
 
 ### **3. Human-Readable Times**
 
 ```bash
-curl "https://api.brahmakaal.com/v1/panchang?latitude=19.0760&longitude=72.8777&date=2025-07-25&human_readable_times=true"
+curl "https://kaal.brah.ma/v1/panchang?latitude=19.0760&longitude=72.8777&date=2025-07-25&human_readable_times=true"
 ```
 
 ---
@@ -531,7 +531,7 @@ import requests
 
 # Find auspicious wedding times
 response = requests.get(
-    "https://api.brahmakaal.com/v1/muhurta",
+    "https://kaal.brah.ma/v1/muhurta",
     params={
         "latitude": 19.0760,
         "longitude": 72.8777,
@@ -554,7 +554,7 @@ for period in wedding_times["muhurta_periods"]:
 ```javascript
 async function getDailyPanchang() {
     const response = await fetch(
-        'https://api.brahmakaal.com/v1/panchang?' +
+        'https://kaal.brah.ma/v1/panchang?' +
         'latitude=28.6139&longitude=77.2090&' +
         'date=2025-07-25&human_readable_times=true&language=hi',
         {
@@ -593,7 +593,7 @@ params = {
 
 analysis = {}
 for endpoint in endpoints:
-    response = requests.get(f"https://api.brahmakaal.com{endpoint}", 
+    response = requests.get(f"https://kaal.brah.ma{endpoint}", 
                           params=params, 
                           headers={"X-API-Key": "your_api_key"})
     analysis[endpoint] = response.json()
@@ -625,7 +625,7 @@ print(f"Best time for business opening: {best_muhurta[0]}")
     "message": "API rate limit exceeded",
     "details": "You have exceeded your plan's rate limit of 60 requests per minute",
     "retry_after": 60,
-    "upgrade_url": "https://brahmakaal.com/upgrade"
+    "upgrade_url": "https://brah.ma/kaal/upgrade"
   },
   "request_id": "req_7x8y9z",
   "timestamp": "2025-07-25T12:00:00Z"
@@ -695,7 +695,7 @@ def get_localized_panchang(lat, lon, date, user_language="en"):
         "human_readable_times": True
     }
     
-    return safe_api_call("https://api.brahmakaal.com/v1/panchang", params)
+    return safe_api_call("https://kaal.brah.ma/v1/panchang", params)
 ```
 
 ---
@@ -706,8 +706,8 @@ def get_localized_panchang(lat, lon, date, user_language="en"):
 - **🐍 Python SDK**: [Python SDK](https://github.com/brahmakaal/sdk-python)
 - **📱 Mobile SDKs**: [React Native](https://github.com/brahmakaal/sdk-react-native) | [Flutter](https://github.com/brahmakaal/sdk-flutter)
 - **🔧 Postman Collection**: [API Collection](https://postman.com/brahmakaal/workspace/brahmakaal-api)
-- **📊 Status Page**: [System Status](https://status.brahmakaal.com)
-- **💬 Support**: [Discord Community](https://discord.gg/brahmakaal) | [support@brahmakaal.com](mailto:support@brahmakaal.com)
+- **📊 Status Page**: [System Status](https://status.brah.ma)
+- **💬 Support**: [Discord Community](https://discord.gg/brahmakaal) | [iam@brah.ma](mailto:iam@brah.ma)
 
 ---
 

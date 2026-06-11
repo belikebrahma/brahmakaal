@@ -401,7 +401,7 @@ tail -f api.log
 ```
 
 ### **💬 Community**
-- 📧 **Support Email**: support@brahmakaal.com
+- 📧 **Support Email**: iam@brah.ma
 - 📋 **Feature Requests**: Submit via GitHub issues
 - 🤝 **Contributing**: Check CONTRIBUTING.md
 

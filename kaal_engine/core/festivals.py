@@ -1043,7 +1043,7 @@ class FestivalEngine:
         for festival in festival_dates:
             ical_lines.extend([
                 "BEGIN:VEVENT",
-                f"UID:{festival.festival_rule.name}_{festival.date.isoformat()}@brahmakaal.com",
+                f"UID:{festival.festival_rule.name}_{festival.date.isoformat()}@brah.ma",
                 f"DTSTART;VALUE=DATE:{festival.date.strftime('%Y%m%d')}",
                 f"SUMMARY:{festival.festival_rule.english_name}",
                 f"DESCRIPTION:{festival.festival_rule.description}",

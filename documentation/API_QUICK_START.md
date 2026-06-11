@@ -7,7 +7,7 @@ Welcome to the **Brahmakaal Enterprise API** - the world's most comprehensive Ve
 ### **Base URL**
 ```
 http://localhost:8000  (Development)
-https://api.brahmakaal.com  (Production)
+https://kaal.brah.ma  (Production)
 ```
 
 ### **Authentication**
@@ -205,7 +205,7 @@ curl -H "Authorization: Bearer TOKEN" \
 ### 🕉️ **Brahma Test Account** (Ready to Use)
 ```
 👤 Username: brahma
-📧 Email: brahma@brahmakaal.com  
+📧 Email: iam@brah.ma  
 🔑 Password: brahma123
 🏆 Role: Admin (Unlimited Access)
 💎 Subscription: Enterprise
@@ -252,7 +252,7 @@ curl -H "X-API-Key: bk_live_spPpLTAJKFiin6mxgv76LX1Olr3OshL-F6a_bicnchw" \
 curl -X POST http://localhost:8000/v1/auth/login \
   -H "Content-Type: application/json" \
   -d '{
-    "email": "brahma@brahmakaal.com",
+    "email": "iam@brah.ma",
     "password": "brahma123"
   }'
 

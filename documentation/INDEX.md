@@ -291,10 +291,10 @@ brahmakaal planets --lat 23.1765 --lon 75.7885 --aspects
 - **Wiki**: GitHub Wiki for community contributions
 
 ### **🏢 Enterprise Support**
-- **General Support**: support@brahmakaal.com
-- **Enterprise Sales**: enterprise@brahmakaal.com  
-- **Technical Support**: tech@brahmakaal.com
-- **Partnership Inquiries**: partners@brahmakaal.com
+- **General Support**: iam@brah.ma
+- **Enterprise Sales**: iam@brah.ma  
+- **Technical Support**: iam@brah.ma
+- **Partnership Inquiries**: iam@brah.ma
 
 ---
 

@@ -9,7 +9,7 @@
 ### 🕉️ **Brahma Test Account** (Ready to Use)
 ```
 👤 Username: brahma
-📧 Email: brahma@brahmakaal.com  
+📧 Email: iam@brah.ma  
 🔑 Password: brahma123
 🏆 Role: Admin (Unlimited Access)
 💎 Subscription: Enterprise
@@ -48,7 +48,7 @@ curl http://localhost:8000/v1/health
 curl -X POST http://localhost:8000/v1/auth/login \
   -H "Content-Type: application/json" \
   -d '{
-    "email": "brahma@brahmakaal.com",
+    "email": "iam@brah.ma",
     "password": "brahma123"
   }'
 

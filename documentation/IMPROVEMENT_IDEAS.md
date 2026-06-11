@@ -263,4 +263,4 @@
 - [ ] **Community Features**: User-generated content and discussions
 - [ ] **Learning Paths**: Structured astrological education through API exploration
 
-**💡 Have more ideas? [Contact our development team](mailto:dev@brahmakaal.com)** 
+**💡 Have more ideas? [Contact our development team](mailto:iam@brah.ma)** 

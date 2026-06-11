@@ -20,7 +20,7 @@ def generate_test_token():
     
     # Use Brahma user details (matching create_brahma_user.py)
     brahma_user_id = "brahma_admin_2025"
-    brahma_email = "brahma@brahmakaal.com"
+    brahma_email = "iam@brah.ma"
     brahma_role = "admin"
     
     try:

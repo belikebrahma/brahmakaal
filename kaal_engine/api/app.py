@@ -188,11 +188,11 @@ app = FastAPI(
     version="1.0.0",
     contact={
         "name": "Brahmakaal Support",
-        "email": "support@brahmakaal.com"
+        "email": "iam@brah.ma"
     },
     license_info={
         "name": "Commercial License",
-        "url": "https://brahmakaal.com/license"
+        "url": "https://brah.ma/kaal/license"
     },
     docs_url="/docs",
     redoc_url="/redoc",
@@ -417,7 +417,7 @@ async def root():
         },
         "subscription_tiers": ["free", "basic", "premium", "enterprise"],
         "support": {
-            "email": "support@brahmakaal.com",
+            "email": "iam@brah.ma",
             "documentation": "/docs"
         }
     }

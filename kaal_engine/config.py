@@ -115,7 +115,11 @@ class Settings(BaseSettings):
     def validate_database_url(cls, v):
         """Validate database URL format"""
         if not v.startswith(("postgresql://", "postgres://")):
-            raise ValueError("Database URL must be a PostgreSQL connection string")
+            import logging
+            logging.getLogger(__name__).warning(
+                f"DATABASE_URL doesn't look like a PostgreSQL URL (got '{v[:50]}...'). "
+                "Set DATABASE_URL env var properly in Coolify."
+            )
         return v
     
     @validator("redis_url")

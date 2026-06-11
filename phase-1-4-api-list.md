@@ -708,7 +708,7 @@ params = {
     'timezone_offset': 5.5
 }
 
-response = requests.get('https://api.brahmakaal.com/v1/panchang', 
+response = requests.get('https://kaal.brah.ma/v1/panchang', 
                        headers=headers, params=params)
 panchang = response.json()
 print(f"Sunrise: {panchang['sunrise']}")

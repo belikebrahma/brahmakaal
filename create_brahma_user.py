@@ -51,7 +51,7 @@ async def create_brahma_user():
                 
                 # Create Brahma user with admin privileges
                 brahma_user = User(
-                    email="brahma@brahmakaal.com",
+                    email="iam@brah.ma",
                     username="brahma",
                     full_name="Brahma (Test Admin)",
                     hashed_password=hashed_password,
@@ -129,7 +129,7 @@ async def create_brahma_user():
             print("\n🎉 Brahma test user created successfully!")
             print("=" * 60)
             print(f"👤 Username: brahma")
-            print(f"📧 Email: brahma@brahmakaal.com")
+            print(f"📧 Email: iam@brah.ma")
             print(f"🔑 Password: brahma123")
             print(f"🏆 Role: Admin")
             print(f"💎 Subscription: Enterprise (Unlimited)")
@@ -141,7 +141,7 @@ async def create_brahma_user():
             print("\n🔍 Testing login...")
             token_data = jwt_handler.create_user_tokens(
                 user_id=user_id,
-                email="brahma@brahmakaal.com",
+                email="iam@brah.ma",
                 role="admin"
             )
             
@@ -151,7 +151,7 @@ async def create_brahma_user():
             
             return {
                 "user_id": user_id,
-                "email": "brahma@brahmakaal.com",
+                "email": "iam@brah.ma",
                 "username": "brahma", 
                 "password": "brahma123",
                 "api_key": brahma_api_key,

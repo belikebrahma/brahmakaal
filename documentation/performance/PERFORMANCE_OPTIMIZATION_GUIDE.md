@@ -613,7 +613,7 @@ class PerformanceAlerts:
 class BrahmakaakSDK {
     constructor(apiKey) {
         this.apiKey = apiKey;
-        this.baseURL = 'https://api.brahmakaal.com';
+        this.baseURL = 'https://kaal.brah.ma';
         this.requestQueue = [];
         this.batchTimeout = null;
     }
