@@ -91,9 +91,13 @@ async def get_festivals(
             cached_result = await cache.get(cache_key)
             if cached_result:
                 # Handle both cached dicts and old cached Pydantic models
-                if hasattr(cached_result, 'model_dump'):
+                # If it's a string (old cache format), ignore it
+                if isinstance(cached_result, str):
+                    pass  # Stale cache — recompute
+                elif hasattr(cached_result, 'model_dump'):
                     return cached_result.model_dump()
-                return cached_result
+                else:
+                    return cached_result
         
         # Convert API regions to engine regions
         from ...core.festivals import Region as EngineRegion

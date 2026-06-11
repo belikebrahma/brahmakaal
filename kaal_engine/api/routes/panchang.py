@@ -155,9 +155,13 @@ async def calculate_panchang(
             cached_result = await cache.get(cache_key)
             if cached_result:
                 # Handle both cached dicts and old cached Pydantic models
-                if hasattr(cached_result, 'model_dump'):
+                # If it's a string (old cache format), ignore it
+                if isinstance(cached_result, str):
+                    pass  # Stale cache — recompute
+                elif hasattr(cached_result, 'model_dump'):
                     return cached_result.model_dump()
-                return cached_result
+                else:
+                    return cached_result
         
         # Parse datetime with validated time
         try:
@@ -559,10 +563,13 @@ async def calculate_personalized_panchang(
                 pass
         
         if cached_result:
-            # Handle both cached dicts and old cached Pydantic models
-            if hasattr(cached_result, 'model_dump'):
+            # Handle both cached dicts, old Pydantic models, and stale strings
+            if isinstance(cached_result, str):
+                pass  # Stale cache — recompute
+            elif hasattr(cached_result, 'model_dump'):
                 return cached_result.model_dump()
-            return cached_result
+            else:
+                return cached_result
         
         # Calculate standard panchang for target date
         target_datetime = datetime.strptime(f"{target_date} 12:00:00", "%Y-%m-%d %H:%M:%S")
