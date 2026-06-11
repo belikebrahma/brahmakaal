@@ -32,10 +32,22 @@ class Settings(BaseSettings):
     jwt_refresh_token_expire_days: int = Field(default=7, env="JWT_REFRESH_TOKEN_EXPIRE_DAYS")
     
     # CORS Configuration
-    cors_origins: list[str] = Field(default=["*"], env="CORS_ORIGINS")
+    cors_origins: str = Field(default="*", env="CORS_ORIGINS")
     cors_allow_credentials: bool = Field(default=True, env="CORS_ALLOW_CREDENTIALS")
-    cors_allow_methods: list[str] = Field(default=["*"], env="CORS_ALLOW_METHODS")
-    cors_allow_headers: list[str] = Field(default=["*"], env="CORS_ALLOW_HEADERS")
+    cors_allow_methods: str = Field(default="*", env="CORS_ALLOW_METHODS")
+    cors_allow_headers: str = Field(default="*", env="CORS_ALLOW_HEADERS")
+
+    @property
+    def cors_origins_list(self) -> list[str]:
+        return [o.strip() for o in self.cors_origins.split(",")]
+
+    @property
+    def cors_allow_methods_list(self) -> list[str]:
+        return [m.strip() for m in self.cors_allow_methods.split(",")]
+
+    @property
+    def cors_allow_headers_list(self) -> list[str]:
+        return [h.strip() for h in self.cors_allow_headers.split(",")]
     
     # Database Configuration (PostgreSQL)
     database_url: str = Field(
@@ -98,13 +110,6 @@ class Settings(BaseSettings):
     stripe_public_key: Optional[str] = Field(default=None, env="STRIPE_PUBLIC_KEY")
     stripe_secret_key: Optional[str] = Field(default=None, env="STRIPE_SECRET_KEY")
     stripe_webhook_secret: Optional[str] = Field(default=None, env="STRIPE_WEBHOOK_SECRET")
-    
-    @validator("cors_origins", "cors_allow_methods", "cors_allow_headers", pre=True)
-    def parse_cors_lists(cls, v):
-        """Parse comma-separated CORS values"""
-        if isinstance(v, str):
-            return [item.strip() for item in v.split(",")]
-        return v
     
     @validator("database_url")
     def validate_database_url(cls, v):
