@@ -16,7 +16,7 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Download ephemeris at build time (not in git)
-RUN wget -q "https://naif.jpl.nasa.gov/pub/naif/generic_kernels/spk/planets/de421.bsp" -O de421.bsp
+RUN wget -q "https://naif.jpl.nasa.gov/pub/naif/generic_kernels/spk/planets/a_old_versions/de421.bsp" -O de421.bsp
 
 # Copy source
 COPY . .
