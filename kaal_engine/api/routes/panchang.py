@@ -107,7 +107,7 @@ async def get_cache():
     from ...api.app import cache
     return cache
 
-@router.post("/panchang", response_model=PanchangResponse)
+@router.post("/panchang")
 async def calculate_panchang(
     request: PanchangRequest,
     kaal_engine: Kaal = Depends(get_kaal_engine),
@@ -395,7 +395,8 @@ async def calculate_panchang(
             # Don't fail the request if database storage fails
             print(f"Database storage warning: {e}")
         
-        return response
+        # Return as dict to avoid response_model serialization issues
+        return response.model_dump()
         
     except HTTPException:
         # Re-raise HTTP exceptions (like validation errors)
@@ -473,8 +474,10 @@ async def get_panchang(
             try:
                 localization_engine = get_localization_engine()
                 
-                # Convert Pydantic response to dict
-                response_dict = response.dict() if hasattr(response, 'dict') else response.__dict__
+                # response is already a dict from model_dump()
+                response_dict = response if isinstance(response, dict) else (
+                    response.dict() if hasattr(response, 'dict') else response.__dict__
+                )
                 
                 # Apply localization
                 localized_response_dict = localization_engine.localize_panchang_response(response_dict, language)
@@ -501,7 +504,7 @@ async def get_panchang(
 # PHASE 4: PERSONALIZED PANCHANG ENDPOINT
 # =============================================================================
 
-@router.post("/panchang/personalized", response_model=PersonalizedPanchangResponse)
+@router.post("/panchang/personalized")
 async def calculate_personalized_panchang(
     request: PersonalizedPanchangRequest,
     kaal_engine = Depends(get_kaal_engine),
@@ -870,7 +873,7 @@ async def calculate_personalized_panchang(
             except:
                 pass
         
-        return response
+        return response.model_dump()
         
     except HTTPException:
         raise

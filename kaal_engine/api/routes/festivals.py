@@ -39,7 +39,7 @@ async def get_cache():
     from ...api.app import cache
     return cache
 
-@router.post("/festivals", response_model=FestivalResponse)
+@router.post("/festivals")
 async def get_festivals(
     request: FestivalRequest,
     festival_engine: FestivalEngine = Depends(get_festival_engine),
@@ -194,7 +194,7 @@ async def get_festivals(
         except Exception as e:
             print(f"Database storage warning: {e}")
         
-        return response
+        return response.model_dump()
         
     except HTTPException:
         raise
@@ -204,7 +204,7 @@ async def get_festivals(
             detail=f"Festival calculation failed: {str(e)}"
         )
 
-@router.get("/festivals", response_model=FestivalResponse)
+@router.get("/festivals")
 async def get_festivals_simple(
     year: int = Query(..., ge=1900, le=2100, description="Year for festival calendar"),
     month: Optional[int] = Query(None, ge=1, le=12, description="Specific month (optional)"),
