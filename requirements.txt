@@ -8,7 +8,12 @@ geopy>=2.3.0
 python-dateutil>=2.8.2
 
 # Phase 3 Enterprise API Dependencies
-fastapi>=0.104.1
+# FastAPI stack pinned to a verified-compatible set.
+# Older environments had FastAPI 0.104.1 with Starlette 1.0.0/AnyIO 4.x,
+# which fails during import/collection.
+fastapi>=0.136.3,<0.137.0
+starlette>=1.2.1,<2.0.0
+anyio>=4.13.0,<5.0.0
 uvicorn[standard]>=0.24.0
 pydantic[email]>=2.4.2
 pydantic-settings>=2.0.3
@@ -21,6 +26,7 @@ psycopg2-binary>=2.9.7
 # Authentication & Security
 PyJWT>=2.8.0
 passlib[bcrypt]>=1.7.4
+bcrypt>=4.0.0,<4.1.0  # Pinned for passlib compatibility (bcrypt 5.x breaks passlib)
 cryptography>=41.0.7
 python-multipart>=0.0.6
 

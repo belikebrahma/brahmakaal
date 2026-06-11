@@ -134,7 +134,20 @@ GET /v1/admin/users/{id}/analytics  # User-specific analytics
 
 ---
 
-## 🌟 **NEW: Phase 4 Personalized APIs (In Development)**
+## 🌟 **Phase 4: Festival Calendar & Validation (Complete) + Personalized APIs (Implemented)**
+
+### **Available Personalized Endpoints**
+| Method | Endpoint | Description | Status |
+|--------|----------|-------------|--------|
+| POST | `/v1/panchang/personalized` | Personalized panchang with birth chart integration | ✅ Implemented |
+| POST | `/v1/muhurta/personalized` | Personalized muhurta with birth chart integration | ✅ Implemented |
+
+### **Planned Endpoints (Not Yet Available)**
+| Method | Endpoint | Description | Status |
+|--------|----------|-------------|--------|
+| POST | `/v1/users/preferences` | Set user preferences | 📋 Planned |
+| GET | `/v1/users/preferences` | Get user preferences | 📋 Planned |
+| POST | `/v1/recommendations/daily` | AI daily recommendations | 📋 Planned |
 
 ### **👤 User Profile & Preferences Management**
 ```bash

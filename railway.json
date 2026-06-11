@@ -9,15 +9,10 @@
     "PORT": "8000",
     "ENVIRONMENT": "production",
     "DATABASE_URL": "${{Postgres.DATABASE_URL}}",
-    "JWT_SECRET_KEY": "455a303912b80c93f55e833adb98e4a42acb094c",
-    "EMAIL_ENABLED": "true",
-    "SMTP_HOST": "smtp.zoho.in",
-    "SMTP_PORT": "465",
-    "SMTP_USER": "aham@brah.ma",
-    "SMTP_PASS": "6whrzKc*@brahma",
-    "SMTP_SECURE": "true",
-    "EMAIL_FROM": "aham@brah.ma",
-    "WEBHOOK_ENABLED": "true",
-    "CORS_ORIGINS": "*"
+    "JWT_SECRET_KEY": "changeme-in-dashboard",
+    "REDIS_ENABLED": "true",
+    "REDIS_URL": "changeme-in-dashboard",
+    "CORS_ORIGINS": "*",
+    "EPHEMERIS_FILE_PATH": "de421.bsp"
   }
 }

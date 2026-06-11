@@ -44,9 +44,14 @@ class AyanamshaEngine:
         "TRUE_CITRA": 50.29
     }
     
-    # Reference ayanamsha values at J2000.0 (calibrated to match Drik Panchang)
+    # Reference ayanamsha values at J2000.0
+    # Lahiri value calibrated to IAE (Indian Astronomical Ephemeris) 2025 reference:
+    #   IAE 2025 Lahiri = 24°13'35" = 24.226389°
+    #   Solving for J2000: 24.226389 - T * 50.29/3600 - T^2 * 0.000139/3600 = 24.222896°
+    #   where T = 0.250017 centuries (2025.0 - 2000.0)
+    # Source: IAE published values, calibrated at Spica (Chitra) = 180° sidereal
     J2000_VALUES = {
-        "LAHIRI": 24.217110,  # Calibrated to match Drik Panchang calculations exactly
+        "LAHIRI": 24.222896,  # Calibrated to IAE 2025 Lahiri reference
         "RAMAN": 21.45292,
         "KRISHNAMURTI": 23.86388,
         "YUKTESHWAR": 22.46667,

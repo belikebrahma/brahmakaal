@@ -46,7 +46,7 @@ class WebhookService:
     """Webhook service for event notifications"""
     
     def __init__(self):
-        self.webhook_secret = settings.webhook_secret or "brahmakaal_webhook_secret_2025"
+        self.webhook_secret = settings.webhook_secret or ""
         self.max_retries = 3
         self.retry_delays = [60, 300, 1800]  # 1min, 5min, 30min
         self.timeout = 30

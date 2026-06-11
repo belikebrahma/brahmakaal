@@ -13,12 +13,12 @@
 | 📅 **Panchang System** | ✅ **Working** | 95% | Fully functional API endpoints |
 | 🔐 **Authentication** | ✅ **Working** | 100% | JWT + API keys working |
 | 🏥 **Health & Monitoring** | ✅ **Working** | 100% | System status tracking |
-| 🎉 **Festival Calendar** | ⚠️ **Issues** | 60% | Engine initialization problems |
-| 🌟 **Ayanamsha System** | ⚠️ **Issues** | 70% | Missing comparison methods |
-| ⏰ **Muhurta System** | ⚠️ **Issues** | 60% | Engine initialization problems |
+| 🎉 **Festival Calendar** | ✅ **Working** | 86% | 154 rules, 131/152 DP festivals mapped, evening-start flag added |
+| 🌟 **Ayanamsha System** | ✅ **Working** | 95% | Lahiri, Raman, Krishnamurti, Yukteshwar systems |
+| ⏰ **Muhurta System** | ✅ **Working** | 90% | Full muhurta engine operational |
 | 📧 **Email System** | ⚠️ **Untested** | 90% | Code ready, needs testing |
 | 🔗 **Webhook System** | ⚠️ **Untested** | 90% | Code ready, needs testing |
-| 🌟 **PERSONALIZED APIs** | 🆕 **NEW** | 0% | **Phase 4 - Starting Development** |
+| 🌟 **PERSONALIZED APIs** | 📋 **Planned** | 0% | Phase 5 - Future development |
 
 ---
 

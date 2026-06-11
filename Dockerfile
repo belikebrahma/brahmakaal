@@ -1,33 +1,32 @@
-# Use Python 3.11 slim image
+# Brahmakaal — Dockerfile for Coolify deployment
 FROM python:3.11-slim
 
-# Set working directory
 WORKDIR /app
 
-# Install system dependencies
+# Install system deps (psycopg2 needs libpq)
 RUN apt-get update && apt-get install -y \
-    gcc \
-    libpq-dev \
+    gcc libpq-dev wget \
     && rm -rf /var/lib/apt/lists/*
 
-# Create a non-root user for security
+# Create non-root user
 RUN groupadd -r appuser && useradd -r -g appuser -u 10014 appuser
 
-# Copy requirements and install Python dependencies
+# Install Python deps
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy application code
+# Download ephemeris at build time (not in git)
+RUN wget -q "https://naif.jpl.nasa.gov/pub/naif/generic_kernels/spk/planets/a_old_versions/de421.bsp" -O de421.bsp
+
+# Copy source
 COPY . .
 
-# Change ownership of the app directory to the non-root user
+# Fix ownership
 RUN chown -R appuser:appuser /app
 
-# Switch to non-root user
 USER 10014
 
-# Expose port
 EXPOSE 8000
 
-# Start the application
-CMD ["python", "start_api.py"]
+# Start server
+CMD ["python", "start_production.py"]

@@ -8,61 +8,16 @@
       "buildCommand": "pip install -r requirements.txt",
       "startCommand": "python start_api.py",
       "envVars": [
-        {
-          "key": "PORT",
-          "value": "8000"
-        },
-        {
-          "key": "ENVIRONMENT",
-          "value": "production"
-        },
-        {
-          "key": "JWT_SECRET_KEY",
-          "value": "455a303912b80c93f55e833adb98e4a42acb094c"
-        },
-        {
-          "key": "EMAIL_ENABLED",
-          "value": "true"
-        },
-        {
-          "key": "SMTP_HOST",
-          "value": "smtp.zoho.in"
-        },
-        {
-          "key": "SMTP_PORT",
-          "value": "465"
-        },
-        {
-          "key": "SMTP_USER",
-          "value": "aham@brah.ma"
-        },
-        {
-          "key": "SMTP_PASS",
-          "value": "6whrzKc*@brahma"
-        },
-        {
-          "key": "SMTP_SECURE",
-          "value": "true"
-        },
-        {
-          "key": "EMAIL_FROM",
-          "value": "aham@brah.ma"
-        },
-        {
-          "key": "DATABASE_URL",
-          "value": "postgres://avnadmin:AVNS_E8ad8bmRF1FxJVmOVS-@kaal-arisingpopli.c.aivencloud.com:13649/defaultdb?sslmode=require"
-        },
-        {
-          "key": "WEBHOOK_ENABLED",
-          "value": "true"
-        }
+        { "key": "PORT", "value": "8000" },
+        { "key": "ENVIRONMENT", "value": "production" },
+        { "key": "JWT_SECRET_KEY", "value": "changeme-in-dashboard" },
+        { "key": "DATABASE_URL", "value": "changeme-in-dashboard" },
+        { "key": "REDIS_ENABLED", "value": "true" },
+        { "key": "REDIS_URL", "value": "changeme-in-dashboard" },
+        { "key": "EPHEMERIS_FILE_PATH", "value": "de421.bsp" },
+        { "key": "CORS_ORIGINS", "value": "*" },
+        { "key": "LOG_LEVEL", "value": "INFO" }
       ]
-    }
-  ],
-  "databases": [
-    {
-      "name": "brahmakaal-postgres",
-      "plan": "free"
     }
   ]
 }

@@ -19,13 +19,61 @@ from ..config import get_settings
 from ..kaal import Kaal
 
 # Import working routes (non-auth ones)
-from .routes.health import router as health_router
-from .routes.panchang import router as panchang_router
-from .routes.muhurta import router as muhurta_router
-from .routes.festivals import router as festivals_router
-from .routes.ayanamsha import router as ayanamsha_router
+from .routes import health as health_routes
+from .routes import panchang as panchang_routes
+from .routes import muhurta as muhurta_routes
+from .routes import festivals as festivals_routes
+from .routes import ayanamsha as ayanamsha_routes
+from ..db.database import get_db
+from ..core.muhurta import MuhurtaEngine
+from ..core.festivals import FestivalEngine
+from ..core.ayanamsha import AyanamshaEngine
 
 settings = get_settings()
+kaal_engine = None
+
+class DummyDBSession:
+    """No-op async DB session used by no-database mode."""
+
+    def add(self, *_args, **_kwargs):
+        return None
+
+    async def commit(self):
+        return None
+
+    async def rollback(self):
+        return None
+
+    async def close(self):
+        return None
+
+    async def execute(self, *_args, **_kwargs):
+        return None
+
+dummy_db = DummyDBSession()
+
+async def get_dummy_db():
+    return dummy_db
+
+async def get_dummy_cache():
+    return None
+
+async def get_no_db_kaal_engine():
+    if kaal_engine is None:
+        from fastapi import HTTPException
+        raise HTTPException(status_code=503, detail="Kaal engine not initialized")
+    return kaal_engine
+
+async def get_no_db_muhurta_engine():
+    return MuhurtaEngine(await get_no_db_kaal_engine())
+
+async def get_no_db_festival_engine():
+    from ..core.festivals import FestivalEngine
+    kaal = await get_no_db_kaal_engine()
+    return FestivalEngine(kaal, lat=28.6139, lod=77.2090, timezone_offset=5.5)
+
+async def get_no_db_ayanamsha_engine():
+    return AyanamshaEngine()
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -81,8 +129,10 @@ async def log_requests(request: Request, call_next):
 
 async def startup_event():
     """Application startup tasks - simplified"""
+    global kaal_engine
     print("🚀 Starting Brahmakaal Enterprise API (No DB Mode)...")
-    print("✅ Core Kaal engine initialized")
+    kaal_engine = Kaal(settings.ephemeris_file_path)
+    print(f"✅ Core Kaal engine initialized from {settings.ephemeris_file_path}")
     print("⚠️  Database features disabled for testing")
 
 async def shutdown_event():
@@ -90,11 +140,22 @@ async def shutdown_event():
     print("👋 Brahmakaal Enterprise API stopped")
 
 # Include working routers
-app.include_router(health_router, prefix="/v1", tags=["Health"])
-app.include_router(panchang_router, prefix="/v1", tags=["Panchang"])
-app.include_router(muhurta_router, prefix="/v1", tags=["Muhurta"])
-app.include_router(festivals_router, prefix="/v1", tags=["Festivals"])
-app.include_router(ayanamsha_router, prefix="/v1", tags=["Ayanamsha"])
+app.include_router(health_routes.router, prefix="/v1", tags=["Health"])
+app.include_router(panchang_routes.router, prefix="/v1", tags=["Panchang"])
+app.include_router(muhurta_routes.router, prefix="/v1", tags=["Muhurta"])
+app.include_router(festivals_routes.router, prefix="/v1", tags=["Festivals"])
+app.include_router(ayanamsha_routes.router, prefix="/v1", tags=["Ayanamsha"])
+
+# Replace full-app/database dependencies with no-DB implementations.
+app.dependency_overrides[get_db] = get_dummy_db
+app.dependency_overrides[panchang_routes.get_kaal_engine] = get_no_db_kaal_engine
+app.dependency_overrides[panchang_routes.get_cache] = get_dummy_cache
+app.dependency_overrides[muhurta_routes.get_muhurta_engine] = get_no_db_muhurta_engine
+app.dependency_overrides[muhurta_routes.get_cache] = get_dummy_cache
+app.dependency_overrides[festivals_routes.get_festival_engine] = get_no_db_festival_engine
+app.dependency_overrides[festivals_routes.get_cache] = get_dummy_cache
+app.dependency_overrides[ayanamsha_routes.get_ayanamsha_engine] = get_no_db_ayanamsha_engine
+app.dependency_overrides[ayanamsha_routes.get_cache] = get_dummy_cache
 
 @app.get("/")
 async def root():

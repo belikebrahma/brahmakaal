@@ -33,7 +33,7 @@ from ..auth.auth_middleware import AuthMiddleware
 from ..auth.models import User, UsageLog, SubscriptionTier
 
 # API routes
-from .routes import health, panchang, ayanamsha, festivals, muhurta, auth, analytics, webhooks
+from .routes import health as health_routes, panchang, ayanamsha, festivals, muhurta, auth, analytics, webhooks
 
 # PHASE 4: Personalized astrology routes
 from .routes import horoscope, transits
@@ -73,9 +73,15 @@ async def startup_event():
         print(f"❌ Database initialization failed: {e}")
         raise
     
-    # Initialize cache (temporarily disabled)
-    cache = None
-    print("⚠️ Cache system temporarily disabled")
+    # Initialize cache
+    global cache
+    from ..cache.redis_backend import RedisCache
+    cache = RedisCache()
+    await cache.initialize()
+    if cache.redis_available:
+        print("✅ Cache system initialized (Redis)")
+    else:
+        print("⚠️ Cache system using memory fallback (Redis not available)")
     
     # Initialize rate limiter
     try:
@@ -357,7 +363,7 @@ async def get_cache():
     return cache
 
 # Register API routes with version prefix
-app.include_router(health.router, prefix="/v1")
+app.include_router(health_routes.router, prefix="/v1")
 app.include_router(auth.router, prefix="/v1")
 app.include_router(panchang.router, prefix="/v1")
 app.include_router(festivals.router, prefix="/v1")
@@ -373,6 +379,7 @@ app.include_router(transits.router, prefix="/v1", tags=["Phase 4: Personalized A
 # Override dependencies
 app.dependency_overrides[get_kaal_engine] = lambda: kaal_engine
 app.dependency_overrides[get_cache] = lambda: cache
+app.dependency_overrides[health_routes.get_health_cache] = lambda: cache
 
 # Override dependencies for Phase 4 routes
 from .routes.horoscope import get_kaal_engine as horoscope_get_kaal_engine

@@ -39,7 +39,7 @@ class Settings(BaseSettings):
     
     # Database Configuration (PostgreSQL)
     database_url: str = Field(
-        default="postgres://avnadmin:AVNS_E8ad8bmRF1FxJVmOVS-@kaal-arisingpopli.c.aivencloud.com:13649/defaultdb?sslmode=require",
+        default="postgres://postgres:Ld6QugQnuGZt3o0dC4QmEnCoMHIZr1Jy9ktWjcwW15Hy7LCoRHsXDSkYAQNecYbN@80.225.216.254:5437/postgres?sslmode=require",
         env="DATABASE_URL"
     )
     database_pool_size: int = Field(default=20, env="DATABASE_POOL_SIZE")
@@ -48,8 +48,8 @@ class Settings(BaseSettings):
     database_pool_recycle: int = Field(default=3600, env="DATABASE_POOL_RECYCLE")
     
     # Redis Configuration (Caching)
-    redis_enabled: bool = Field(default=False, env="REDIS_ENABLED")
-    redis_url: str = Field(default="redis://localhost:6379/0", env="REDIS_URL")
+    redis_enabled: bool = Field(default=True, env="REDIS_ENABLED")
+    redis_url: str = Field(default="rediss://default:57ae5LUhXSwHRAAdISF9yK0n3h2RweMuQiYvjfjjge34xIh5ZPURvZycGP5WpYKE@80.225.216.254:5440/0", env="REDIS_URL")
     redis_pool_size: int = Field(default=10, env="REDIS_POOL_SIZE")
     redis_timeout: int = Field(default=5, env="REDIS_TIMEOUT")
     
@@ -75,13 +75,13 @@ class Settings(BaseSettings):
     request_timeout: int = Field(default=30, env="REQUEST_TIMEOUT")
     
     # Email Configuration (for verification and notifications)
-    email_enabled: bool = Field(default=True, env="EMAIL_ENABLED")
-    smtp_host: str = Field(default="smtp.zoho.in", env="SMTP_HOST")
+    email_enabled: bool = Field(default=False, env="EMAIL_ENABLED")
+    smtp_host: str = Field(default="", env="SMTP_HOST")
     smtp_port: int = Field(default=465, env="SMTP_PORT")
-    smtp_username: str = Field(default="aham@brah.ma", env="SMTP_USER")
-    smtp_password: str = Field(default="6whrzKc*@brahma", env="SMTP_PASS")
+    smtp_username: str = Field(default="", env="SMTP_USER")
+    smtp_password: str = Field(default="", env="SMTP_PASS")
     smtp_secure: bool = Field(default=True, env="SMTP_SECURE")
-    email_from: str = Field(default="aham@brah.ma", env="EMAIL_FROM")
+    email_from: str = Field(default="", env="EMAIL_FROM")
     
     # Monitoring and Analytics
     analytics_enabled: bool = Field(default=True, env="ANALYTICS_ENABLED")
@@ -89,8 +89,8 @@ class Settings(BaseSettings):
     usage_tracking_enabled: bool = Field(default=True, env="USAGE_TRACKING_ENABLED")
     
     # API Keys and External Services
-    webhook_enabled: bool = Field(default=True, env="WEBHOOK_ENABLED")
-    webhook_secret: str = Field(default="brahmakaal_webhook_secret_2025", env="WEBHOOK_SECRET")
+    webhook_enabled: bool = Field(default=False, env="WEBHOOK_ENABLED")
+    webhook_secret: str = Field(default="", env="WEBHOOK_SECRET")
     webhook_timeout: int = Field(default=30, env="WEBHOOK_TIMEOUT")
     webhook_max_retries: int = Field(default=3, env="WEBHOOK_MAX_RETRIES")
     
@@ -116,8 +116,8 @@ class Settings(BaseSettings):
     @validator("redis_url")
     def validate_redis_url(cls, v):
         """Validate Redis URL format"""
-        if not v.startswith("redis://"):
-            raise ValueError("Redis URL must start with redis://")
+        if not v.startswith("redis://") and not v.startswith("rediss://"):
+            raise ValueError("Redis URL must start with redis:// or rediss://")
         return v
     
     @validator("log_level")

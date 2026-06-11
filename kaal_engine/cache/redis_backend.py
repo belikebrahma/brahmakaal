@@ -5,6 +5,7 @@ Async Redis operations with connection pooling and fallback
 
 import json
 import asyncio
+import ssl
 from typing import Any, Optional, Dict, Union
 from datetime import datetime, timedelta
 
@@ -44,15 +45,22 @@ class RedisCache:
         
         try:
             # Try redis.asyncio first (redis >= 4.2.0)
+            # Build extra kwargs — pass ssl_cert_reqs for self-signed certs on rediss://
+            redis_kwargs = dict(
+                encoding="utf-8",
+                decode_responses=True,
+                max_connections=settings.redis_pool_size,
+                socket_timeout=settings.redis_timeout,
+                socket_connect_timeout=settings.redis_timeout,
+                retry_on_timeout=True
+            )
+            if settings.redis_url.startswith('rediss://'):
+                redis_kwargs['ssl_cert_reqs'] = ssl.CERT_NONE
+            
             if hasattr(aioredis, 'from_url'):
                 self.redis_pool = aioredis.from_url(
                     settings.redis_url,
-                    encoding="utf-8",
-                    decode_responses=True,
-                    max_connections=settings.redis_pool_size,
-                    socket_timeout=settings.redis_timeout,
-                    socket_connect_timeout=settings.redis_timeout,
-                    retry_on_timeout=True
+                    **redis_kwargs
                 )
             else:
                 # Fallback for older aioredis
@@ -73,6 +81,11 @@ class RedisCache:
             self.redis_available = False
             self.redis_pool = None
     
+    @staticmethod
+    def make_key(*args) -> str:
+        """Build a cache key from parts (compatible with old cache interface)."""
+        return ":".join(str(a) for a in args)
+
     async def get(self, key: str) -> Optional[Any]:
         """Get value from cache"""
         cache_key = f"{settings.cache_prefix}:{key}"
@@ -98,8 +111,8 @@ class RedisCache:
         
         return None
     
-    async def set(self, key: str, value: Any, ttl: int = None) -> bool:
-        """Set value in cache with optional TTL"""
+    async def set(self, key: str, value: Any, ttl: int = None, **kwargs) -> bool:
+        """Set value in cache with optional TTL. Accepts **kwargs for compatibility with old cache interface."""
         cache_key = f"{settings.cache_prefix}:{key}"
         ttl = ttl or settings.cache_ttl_seconds
         

@@ -1,35 +1,22 @@
-version: '3.8'
+# Brahmakaal — Docker Compose for Coolify
+# Set all secrets via Coolify Environment Variables (not in this file)
 
 services:
-  app:
-    build: .
+  brahmakaal-api:
+    build:
+      context: .
+      dockerfile: Dockerfile
     ports:
       - "8000:8000"
     environment:
-      - ENVIRONMENT=development
-      - DATABASE_URL=postgresql://postgres:postgres@db:5432/brahmakaal
-      - JWT_SECRET_KEY=455a303912b80c93f55e833adb98e4a42acb094c
-      - EMAIL_ENABLED=true
-      - SMTP_HOST=smtp.zoho.in
-      - SMTP_PORT=465
-      - SMTP_USER=aham@brah.ma
-      - SMTP_PASS=6whrzKc*@brahma
-      - WEBHOOK_ENABLED=true
-    depends_on:
-      - db
+      - ENVIRONMENT=production
+      - DATABASE_URL=${DATABASE_URL}
+      - REDIS_ENABLED=true
+      - REDIS_URL=${REDIS_URL}
+      - JWT_SECRET_KEY=${JWT_SECRET_KEY}
+      - CORS_ORIGINS=*
+      - LOG_LEVEL=INFO
+      - EPHEMERIS_FILE_PATH=de421.bsp
     volumes:
-      - .:/app
-
-  db:
-    image: postgres:15
-    environment:
-      - POSTGRES_USER=postgres
-      - POSTGRES_PASSWORD=postgres
-      - POSTGRES_DB=brahmakaal
-    ports:
-      - "5432:5432"
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
-
-volumes:
-  postgres_data:
+      - ./data:/app/data
+    restart: unless-stopped

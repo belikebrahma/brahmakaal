@@ -102,7 +102,7 @@ async def find_muhurta(
             )
             
             # Try cache first
-            cached_result = cache.get(cache_key)
+            cached_result = await cache.get(cache_key)
             if cached_result:
                 return cached_result
         
@@ -179,7 +179,7 @@ async def find_muhurta(
         
         # Cache result
         if cache:
-            cache.set(cache_key, response, data_type='muhurta')
+            await cache.set(cache_key, response, data_type='muhurta')
         
         # Store in database (async, don't wait)
         try:

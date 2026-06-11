@@ -15,6 +15,10 @@ from ..models import HealthResponse
 from ...db.database import get_db
 from ...config import get_settings
 
+# Named dependency so main app can override it with a real cache
+async def get_health_cache():
+    return None
+
 router = APIRouter()
 
 # Track server start time for uptime calculation
@@ -23,7 +27,7 @@ server_start_time = time.time()
 @router.get("/health", response_model=HealthResponse)
 async def health_check(
     db: AsyncSession = Depends(get_db),
-    cache = Depends(lambda: None)  # Will be properly injected in main app
+    cache = Depends(get_health_cache)
 ):
     """
     Comprehensive health check endpoint
@@ -82,7 +86,7 @@ async def health_check(
 
 @router.get("/status", response_model=Dict[str, Any])
 async def detailed_status(
-    cache = Depends(lambda: None)
+    cache = Depends(get_health_cache)
 ):
     """
     Detailed system status with performance metrics

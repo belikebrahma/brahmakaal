@@ -89,7 +89,7 @@ async def compare_ayanamsha(
             cache_key = cache.make_key('ayanamsha', calc_date)
             
             # Try cache first
-            cached_result = cache.get(cache_key)
+            cached_result = await cache.get(cache_key)
             if cached_result:
                 return cached_result
         
@@ -135,7 +135,7 @@ async def compare_ayanamsha(
         
         # Cache result
         if cache:
-            cache.set(cache_key, response, data_type='ayanamsha')
+            await cache.set(cache_key, response, data_type='ayanamsha')
         
         # Store in database (async, don't wait)
         try:

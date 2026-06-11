@@ -17,6 +17,7 @@ setup(
     entry_points={
         'console_scripts': [
             'kaal = kaal_engine.cli:main',
+            'brahmakaal = kaal_engine.cli:main',  # Alias
         ],
     },
 ) 

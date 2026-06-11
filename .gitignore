@@ -1,18 +1,52 @@
+# Python
 __pycache__/
 *.pyc
 *.pyo
 *.pyd
+*.egg-info/
+dist/
+build/
+*.so
+
+# Virtual environments
 .venv/
 env/
 venv/
 ENV/
 env.bak/
 venv.bak/
+
+# Editor & OS
 *.swp
 *.bak
 *.tmp
 *.log
+.DS_Store
+.directory
+*.sublime-workspace
+
+# Data & binaries (downloaded at build time)
 data/
-*.egg-info/
-dist/
-build/ 
+*.bsp
+*.bspc
+
+# Secrets
+.env
+.env.local
+.env.production
+.env.development
+
+# Test & coverage
+.coverage
+.coverage.*
+htmlcov/
+.pytest_cache/
+
+# IDE
+.idea/
+.vscode/
+*.code-workspace
+
+# Project specific
+oldtests/
+Old-Documentation/ 

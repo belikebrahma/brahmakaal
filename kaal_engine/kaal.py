@@ -1,6 +1,11 @@
 from datetime import datetime, timedelta, timezone
 from .core import spice_loader, siddhanta, delta_t
 from .core.ayanamsha import AyanamshaEngine
+from .core.enhanced_panchaka import EnhancedPanchakaEngine
+from .core.udaya_lagna import UdayaLagnaEngine
+from .core.complete_muhurta import CompleteMuhurtaEngine
+from .core.inauspicious_periods import EnhancedInauspiciousEngine
+from .core.calendar_extensions import CalendarExtensionsEngine
 from .geo import micro_adjust
 from astropy.time import Time
 from skyfield.api import load
@@ -21,8 +26,13 @@ class Kaal:
         # Load timescale for calculations
         self.ts = load.timescale()
         
-        # Initialize ayanamsha engine
+        # Initialize engines
         self.ayanamsha_engine = AyanamshaEngine()
+        self.enhanced_panchaka_engine = EnhancedPanchakaEngine()
+        self.udaya_lagna_engine = UdayaLagnaEngine()
+        self.complete_muhurta_engine = CompleteMuhurtaEngine()
+        self.enhanced_inauspicious_engine = EnhancedInauspiciousEngine()
+        self.calendar_extensions_engine = CalendarExtensionsEngine()
     
     def _jd_to_datetime_with_timezone(self, jd: float, timezone_offset: float = 0) -> datetime:
         """
@@ -58,19 +68,29 @@ class Kaal:
         """
         Complete Panchang calculation with 50+ Vedic parameters including traditional features
         """
-        jd_utc = self._julian_day(dt)
-        jd_tt = delta_t.utc_to_tt(jd_utc)
-        
         # Calculate timezone offset if not provided
         if timezone_offset is None:
             # Calculate from longitude (15 degrees = 1 hour)
             timezone_offset = lon / 15.0
         
-        # Calculate solar times first to get sunrise reference time
-        solar_times = self._calculate_solar_times(jd_tt, lat, lon, elevation, dt, timezone_offset)
+        # Compute UTC JD of the input datetime for non-solar calculations
+        dt_utc = dt - timedelta(hours=timezone_offset)
+        jd_utc = self._julian_day(dt_utc)
+        jd_tt = delta_t.utc_to_tt(jd_utc)
         
-        # CRITICAL FIX: Use sunrise time as reference for panchang calculations (traditional method)
-        sunrise_jd = micro_adjust.true_sunrise(jd_tt, lat, lon, elevation)
+        # Always center sunrise/sunset search on LOCAL NOON (in UTC).
+        # This guarantees the search window contains the same-day sunrise
+        # and sunset regardless of what time of day the user passes as `dt`.
+        # Local noon is always within ~6 hours of sunrise/sunset, and the
+        # search window is ±12 hours — so both events are always captured.
+        local_noon = datetime(dt.year, dt.month, dt.day, 12, 0, 0)
+        local_noon_utc = local_noon - timedelta(hours=timezone_offset)
+        jd_noon_utc = self._julian_day(local_noon_utc)
+        jd_noon_tt = delta_t.utc_to_tt(jd_noon_utc)
+        solar_times = self._calculate_solar_times(jd_noon_tt, lat, lon, elevation, dt, timezone_offset)
+        
+        # Compute sunrise reference for Vedic planetary positions (traditional method)
+        sunrise_jd = micro_adjust.true_sunrise(jd_noon_tt, lat, lon, elevation)
         sunrise_jd_tt = delta_t.utc_to_tt(sunrise_jd)
         
         # Get planetary positions at sunrise time for accurate panchang elements
@@ -150,9 +170,9 @@ class Kaal:
             "graha_positions": planetary_data,
             
             # Advanced Calculations
-            "ayanamsha": self._compute_ayanamsha(jd_tt, ayanamsha),
+            "ayanamsha": self._compute_ayanamsha(sunrise_jd_tt, ayanamsha),
             "local_mean_time": self._compute_local_mean_time(dt, lon),
-            "sidereal_time": self._compute_sidereal_time(jd_tt, lon),
+            "sidereal_time": self._compute_sidereal_time(sunrise_jd_tt, lon),
             
             # Additional Parameters
             "rashi_of_moon": self._get_rashi(moon_long),
@@ -636,33 +656,51 @@ class Kaal:
         return ((moon_long - sun_long) % 360) / 12.0
     
     def _get_tithi_name(self, tithi: float) -> str:
-        """Get tithi name from tithi number (FIXED INDEXING)"""
-        # Shukla Paksha names (0-14)
+        """Get tithi name from tithi number.
+        
+        Tithi system: (moon_long - sun_long) / 12 gives value in [0, 30).
+        At new moon, diff=0 → tithi_raw=0 = start of Shukla Pratipada.
+        Convention: floor(tithi_raw) + 1 (1-indexed):
+          [0.0, 1.0):   tithi 1 = Shukla Pratipada  (0-12° after new moon)
+          [1.0, 14.0):  tithi 2-14 = Shukla Dwitiya..Chaturdashi
+          [14.0, 15.0): tithi 15 = Shukla Purnima
+          [15.0, 16.0): tithi 16 = Krishna Pratipada
+          [16.0, 29.0): tithi 17-29 = Krishna Dwitiya..Chaturdashi
+          [29.0, 30.0): tithi 30 = Krishna Amavasya
+        """
+        # Normalize to [0, 30)
+        tithi = tithi % 30
+        
         shukla_names = [
             "Pratipada", "Dwitiya", "Tritiya", "Chaturthi", "Panchami",
             "Shashthi", "Saptami", "Ashtami", "Navami", "Dashami",
             "Ekadashi", "Dwadashi", "Trayodashi", "Chaturdashi", "Purnima"
         ]
         
-        # Krishna Paksha names (15-29)
         krishna_names = [
             "Pratipada", "Dwitiya", "Tritiya", "Chaturthi", "Panchami",
             "Shashthi", "Saptami", "Ashtami", "Navami", "Dashami",
             "Ekadashi", "Dwadashi", "Trayodashi", "Chaturdashi", "Amavasya"
         ]
         
-        if tithi < 15:
-            # Shukla Paksha (0.0-14.99)
-            tithi_index = int(tithi)
-            # Ensure we stay within bounds (0-14)
-            tithi_index = min(tithi_index, 14)
-            return f"Shukla {shukla_names[tithi_index]}"
+        if tithi < 1.0:
+            # Shukla Pratipada: 0-12° after new moon (Amavasya)
+            # raw [0, 1) → active = floor+1 = 1 → Shukla Pratipada
+            return "Shukla Pratipada"
+        elif tithi < 14.0:
+            # Shukla Paksha (tithi 2..14 = Dwitiya..Chaturdashi)
+            # int(tithi): 1..13 → shukla_names[1..13]
+            return f"Shukla {shukla_names[int(tithi)]}"
+        elif tithi < 15.0:
+            # Shukla Purnima: 168-180° after new moon
+            return "Shukla Purnima"
+        elif tithi < 29.0:
+            # Krishna Paksha (tithi 16..29 = Pratipada..Chaturdashi)
+            # int(tithi) - 15: 0..13 → krishna_names[0..13]
+            return f"Krishna {krishna_names[int(tithi) - 15]}"
         else:
-            # Krishna Paksha (15.0-29.99, and handle 30.0 wrap-around)
-            tithi_index = int(tithi) - 15
-            # Ensure we stay within bounds (0-14)
-            tithi_index = min(tithi_index, 14)
-            return f"Krishna {krishna_names[tithi_index]}"
+            # Krishna Amavasya: 348-360° after new moon
+            return "Krishna Amavasya"
     
     def _moon_nakshatra(self, moon_long: float) -> str:
         """Get nakshatra name from moon longitude"""
@@ -733,26 +771,33 @@ class Kaal:
             "Kimstughna", "Shakuni", "Chatushpada", "Naga"
         ]
         
-        karana_index = int(karana / 2) % len(karanas)
+        karana_index = int(karana) % len(karanas)
         return karanas[karana_index]
     
     def _compute_moon_phase(self, sun_long: float, moon_long: float) -> str:
-        """Calculate moon phase name"""
-        phase_angle = (moon_long - sun_long) % 360
+        """Calculate moon phase name from tithi-based boundaries.
         
-        if phase_angle < 45:
+        Uses the tithi (Sun-Moon separation ÷ 12°) to determine phase:
+          1 tithi = 12° of angular separation.
+          Amavasya (New Moon) = within 12° of Sun (tithi 30 or < 1).
+          Purnima (Full Moon) = ~180° from Sun (tithi 15).
+          Quarter phases at ~90° and ~270°.
+        """
+        tithi = ((moon_long - sun_long) % 360) / 12.0
+        
+        if tithi < 1.0 or tithi >= 29.0:
             return "New Moon"
-        elif phase_angle < 90:
+        elif tithi < 6.5:
             return "Waxing Crescent"
-        elif phase_angle < 135:
+        elif tithi < 8.5:
             return "First Quarter"
-        elif phase_angle < 180:
+        elif tithi < 14.0:
             return "Waxing Gibbous"
-        elif phase_angle < 225:
+        elif tithi < 16.0:
             return "Full Moon"
-        elif phase_angle < 270:
+        elif tithi < 21.5:
             return "Waning Gibbous"
-        elif phase_angle < 315:
+        elif tithi < 23.5:
             return "Last Quarter"
         else:
             return "Waning Crescent"
@@ -845,6 +890,373 @@ class Kaal:
     def get_supported_ayanamshas(self) -> dict:
         """Get list of all supported ayanamsha systems"""
         return self.ayanamsha_engine.SUPPORTED_SYSTEMS
+    
+    def get_enhanced_panchaka_periods(self, lat: float, lon: float, dt: datetime, 
+                                    elevation: float = 0, timezone_offset: float = 0) -> dict:
+        """
+        Calculate detailed hourly panchaka periods for the entire day
+        
+        Args:
+            lat: Latitude in degrees
+            lon: Longitude in degrees  
+            dt: Datetime for calculation
+            elevation: Elevation in meters
+            timezone_offset: Timezone offset in hours
+            
+        Returns:
+            Dictionary with detailed panchaka periods and current status
+        """
+        try:
+            # Calculate basic astronomical data
+            jd_utc = self._julian_day(dt)
+            jd_tt = delta_t.utc_to_tt(jd_utc)
+            
+            # Get solar times for the day
+            solar_times = self._calculate_solar_times(jd_tt, lat, lon, elevation, dt, timezone_offset)
+            
+            # Get moon longitude for panchaka calculation
+            moon_data = self._get_planetary_positions(jd_tt, "LAHIRI")
+            moon_longitude = moon_data['moon']['longitude']
+            
+            # Create location data
+            location = {
+                "latitude": lat,
+                "longitude": lon,
+                "elevation": elevation
+            }
+            
+            # Calculate detailed panchaka periods
+            periods = self.enhanced_panchaka_engine.calculate_daily_panchaka_periods(
+                date=dt,
+                sunrise=solar_times['sunrise'],
+                sunset=solar_times['sunset'], 
+                moon_longitude=moon_longitude,
+                location=location
+            )
+            
+            # Get current period
+            current_period = self.enhanced_panchaka_engine.get_current_panchaka_period(periods, dt)
+            
+            # Get next favorable period
+            next_favorable = self.enhanced_panchaka_engine.get_next_favorable_period(periods, dt)
+            
+            # Calculate summary statistics
+            total_favorable_time = sum(
+                p['duration_minutes'] for p in periods if p['favorable']
+            )
+            total_unfavorable_time = sum(
+                p['duration_minutes'] for p in periods if not p['favorable']
+            )
+            
+            favorable_percentage = (total_favorable_time / (total_favorable_time + total_unfavorable_time)) * 100
+            
+            return {
+                "date": dt.strftime("%Y-%m-%d"),
+                "total_periods": len(periods),
+                "current_period": current_period,
+                "next_favorable_period": next_favorable,
+                "panchaka_periods": periods,
+                "summary": {
+                    "favorable_periods": len([p for p in periods if p['favorable']]),
+                    "unfavorable_periods": len([p for p in periods if not p['favorable']]),
+                    "total_favorable_minutes": total_favorable_time,
+                    "total_unfavorable_minutes": total_unfavorable_time,
+                    "favorable_percentage": round(favorable_percentage, 1),
+                    "day_quality": "Highly Favorable" if favorable_percentage > 70 else 
+                                  "Moderately Favorable" if favorable_percentage > 50 else 
+                                  "Exercise Caution"
+                },
+                "location": location,
+                "calculation_time": datetime.utcnow()
+            }
+            
+        except Exception as e:
+            print(f"Enhanced panchaka calculation failed: {e}")
+            return {
+                "error": f"Calculation failed: {str(e)}",
+                "date": dt.strftime("%Y-%m-%d"),
+                "panchaka_periods": [],
+                "current_period": None
+            }
+    
+    def get_udaya_lagna_periods(self, lat: float, lon: float, dt: datetime,
+                               elevation: float = 0, timezone_offset: float = 0) -> dict:
+        """
+        Calculate Udaya Lagna (Rising Sign) periods for the entire day
+        
+        Args:
+            lat: Latitude in degrees
+            lon: Longitude in degrees
+            dt: Datetime for calculation
+            elevation: Elevation in meters
+            timezone_offset: Timezone offset in hours
+            
+        Returns:
+            Dictionary with detailed rising sign periods and current status
+        """
+        try:
+            # Calculate basic astronomical data
+            jd_utc = self._julian_day(dt)
+            jd_tt = delta_t.utc_to_tt(jd_utc)
+            
+            # Get solar times for the day
+            solar_times = self._calculate_solar_times(jd_tt, lat, lon, elevation, dt, timezone_offset)
+            
+            # Get sun longitude for lagna calculation
+            sun_data = self._get_planetary_positions(jd_tt, "LAHIRI")
+            sun_longitude = sun_data['sun']['longitude']
+            
+            # Create location data
+            location = {
+                "latitude": lat,
+                "longitude": lon,
+                "elevation": elevation
+            }
+            
+            # Calculate Udaya Lagna periods
+            periods = self.udaya_lagna_engine.calculate_udaya_lagna_periods(
+                date=dt,
+                sunrise=solar_times['sunrise'],
+                sunset=solar_times['sunset'],
+                location=location,
+                sun_longitude=sun_longitude
+            )
+            
+            # Get current rising sign
+            current_lagna = self.udaya_lagna_engine.get_current_udaya_lagna(periods, dt)
+            
+            # Get most favorable periods
+            favorable_periods = self.udaya_lagna_engine.get_most_favorable_periods(periods)
+            
+            # Calculate summary statistics
+            fire_signs = len([p for p in periods if p['element'] == 'Fire'])
+            earth_signs = len([p for p in periods if p['element'] == 'Earth']) 
+            air_signs = len([p for p in periods if p['element'] == 'Air'])
+            water_signs = len([p for p in periods if p['element'] == 'Water'])
+            
+            return {
+                "date": dt.strftime("%Y-%m-%d"),
+                "total_periods": len(periods),
+                "current_lagna": current_lagna,
+                "udaya_lagna_periods": periods,
+                "favorable_periods": favorable_periods,
+                "summary": {
+                    "fire_signs": fire_signs,
+                    "earth_signs": earth_signs,
+                    "air_signs": air_signs,
+                    "water_signs": water_signs,
+                    "favorable_periods_count": len(favorable_periods),
+                    "current_element": current_lagna.get('element', 'Unknown'),
+                    "day_dominance": self._determine_elemental_dominance(fire_signs, earth_signs, air_signs, water_signs)
+                },
+                "location": location,
+                "calculation_time": datetime.utcnow()
+            }
+            
+        except Exception as e:
+            print(f"Udaya Lagna calculation failed: {e}")
+            return {
+                "error": f"Calculation failed: {str(e)}",
+                "date": dt.strftime("%Y-%m-%d"),
+                "udaya_lagna_periods": [],
+                "current_lagna": None
+            }
+    
+    def _determine_elemental_dominance(self, fire: int, earth: int, air: int, water: int) -> str:
+        """Determine which element dominates the day"""
+        elements = {"Fire": fire, "Earth": earth, "Air": air, "Water": water}
+        dominant_element = max(elements, key=elements.get)
+        
+        dominance_descriptions = {
+            "Fire": "Energetic and action-oriented day",
+            "Earth": "Practical and stable day", 
+            "Air": "Communication and intellectual day",
+            "Water": "Emotional and intuitive day"
+        }
+        
+        return dominance_descriptions.get(dominant_element, "Balanced day")
+    
+    def get_complete_muhurta_periods(self, lat: float, lon: float, dt: datetime,
+                                   elevation: float = 0, timezone_offset: float = 0) -> dict:
+        """
+        Calculate all 8 traditional muhurta periods for the day
+        
+        Args:
+            lat: Latitude in degrees
+            lon: Longitude in degrees
+            dt: Datetime for calculation
+            elevation: Elevation in meters
+            timezone_offset: Timezone offset in hours
+            
+        Returns:
+            Dictionary with all 8 muhurta periods and comprehensive analysis
+        """
+        try:
+            # Calculate basic astronomical data
+            jd_utc = self._julian_day(dt)
+            jd_tt = delta_t.utc_to_tt(jd_utc)
+            
+            # Get solar times for the day
+            solar_times = self._calculate_solar_times(jd_tt, lat, lon, elevation, dt, timezone_offset)
+            
+            # Create location data
+            location = {
+                "latitude": lat,
+                "longitude": lon,
+                "elevation": elevation
+            }
+            
+            # Calculate all muhurta periods
+            muhurta_data = self.complete_muhurta_engine.calculate_all_muhurta_periods(
+                date=dt,
+                sunrise=solar_times['sunrise'],
+                sunset=solar_times['sunset'],
+                solar_noon=solar_times['solar_noon'],
+                location=location
+            )
+            
+            # Get current muhurta status
+            current_muhurta = self.complete_muhurta_engine.get_current_muhurta(
+                muhurta_data['muhurta_periods'], dt
+            )
+            
+            # Get next muhurta
+            next_muhurta = self.complete_muhurta_engine.get_next_muhurta(
+                muhurta_data['muhurta_periods'], dt
+            )
+            
+            # Add current status to response
+            muhurta_data["current_muhurta"] = current_muhurta
+            muhurta_data["next_muhurta"] = next_muhurta
+            
+            return muhurta_data
+            
+        except Exception as e:
+            print(f"Complete muhurta calculation failed: {e}")
+            return {
+                "error": f"Calculation failed: {str(e)}",
+                "date": dt.strftime("%Y-%m-%d"),
+                "muhurta_periods": {},
+                "current_muhurta": None
+            }
+    
+    def get_enhanced_inauspicious_periods(self, lat: float, lon: float, dt: datetime,
+                                        elevation: float = 0, timezone_offset: float = 0) -> dict:
+        """
+        Calculate enhanced inauspicious periods for the day
+        
+        Args:
+            lat: Latitude in degrees
+            lon: Longitude in degrees
+            dt: Datetime for calculation
+            elevation: Elevation in meters
+            timezone_offset: Timezone offset in hours
+            
+        Returns:
+            Dictionary with all inauspicious periods and comprehensive analysis
+        """
+        try:
+            # Calculate basic astronomical data
+            jd_utc = self._julian_day(dt)
+            jd_tt = delta_t.utc_to_tt(jd_utc)
+            
+            # Get solar times for the day
+            solar_times = self._calculate_solar_times(jd_tt, lat, lon, elevation, dt, timezone_offset)
+            
+            # Get planetary data for inauspicious calculations
+            planetary_data = self._get_planetary_positions(jd_tt, "LAHIRI")
+            moon_longitude = planetary_data['moon']['longitude']
+            sun_longitude = planetary_data['sun']['longitude']
+            
+            # Create location data
+            location = {
+                "latitude": lat,
+                "longitude": lon,
+                "elevation": elevation
+            }
+            
+            # Calculate all inauspicious periods
+            inauspicious_data = self.enhanced_inauspicious_engine.calculate_all_inauspicious_periods(
+                date=dt,
+                sunrise=solar_times['sunrise'],
+                sunset=solar_times['sunset'],
+                moon_longitude=moon_longitude,
+                sun_longitude=sun_longitude,
+                location=location
+            )
+            
+            # Get current inauspicious period status
+            current_inauspicious = self.enhanced_inauspicious_engine.get_current_inauspicious_period(
+                inauspicious_data['inauspicious_periods'], dt
+            )
+            
+            # Add current status to response
+            inauspicious_data["current_inauspicious"] = current_inauspicious
+            
+            return inauspicious_data
+            
+        except Exception as e:
+            print(f"Enhanced inauspicious calculation failed: {e}")
+            return {
+                "error": f"Calculation failed: {str(e)}",
+                "date": dt.strftime("%Y-%m-%d"),
+                "inauspicious_periods": {},
+                "current_inauspicious": None
+            }
+    
+    def get_extended_calendar_systems(self, lat: float, lon: float, dt: datetime,
+                                    elevation: float = 0, timezone_offset: float = 0) -> dict:
+        """
+        Calculate extended calendar systems for the day
+        
+        Args:
+            lat: Latitude in degrees
+            lon: Longitude in degrees
+            dt: Datetime for calculation
+            elevation: Elevation in meters
+            timezone_offset: Timezone offset in hours
+            
+        Returns:
+            Dictionary with all extended calendar systems and cultural analysis
+        """
+        try:
+            # Calculate basic astronomical data
+            jd_utc = self._julian_day(dt)
+            jd_tt = delta_t.utc_to_tt(jd_utc)
+            
+            # Get planetary data for calendar calculations
+            planetary_data = self._get_planetary_positions(jd_tt, "LAHIRI")
+            sun_longitude = planetary_data['sun']['longitude']
+            moon_longitude = planetary_data['moon']['longitude']
+            
+            # Get ayanamsha for the date
+            ayanamsha_value = self.ayanamsha_engine.calculate_ayanamsha(jd_tt, "LAHIRI")
+            
+            # Calculate all extended calendar systems
+            calendar_data = self.calendar_extensions_engine.calculate_extended_calendar_systems(
+                date=dt,
+                sun_longitude=sun_longitude,
+                moon_longitude=moon_longitude,
+                ayanamsha=ayanamsha_value
+            )
+            
+            # Add location context
+            calendar_data["location"] = {
+                "latitude": lat,
+                "longitude": lon,
+                "elevation": elevation
+            }
+            
+            return calendar_data
+            
+        except Exception as e:
+            print(f"Extended calendar systems calculation failed: {e}")
+            return {
+                "error": f"Calculation failed: {str(e)}",
+                "date": dt.strftime("%Y-%m-%d"),
+                "extended_calendar_systems": {},
+                "summary": None
+            }
 
     def _calculate_nakshatra_pada_system(self, moon_long: float, jd_tt: float, timezone_offset: float) -> dict:
         """

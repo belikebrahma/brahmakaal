@@ -1,0 +1,191 @@
+{
+  "festivals": {
+    "2026": {
+      "Diwali": {
+        "name": "Diwali",
+        "month": "Kartik",
+        "paksha": "krishna",
+        "tithi_num": 15,
+        "year": 2026,
+        "result": "2026-11-09",
+        "elapsed_seconds": 10.8,
+        "status": "passed"
+      },
+      "Holika Dahan": {
+        "name": "Holika Dahan",
+        "month": "Phalguna",
+        "paksha": "shukla",
+        "tithi_num": 15,
+        "year": 2026,
+        "result": "2026-03-04",
+        "elapsed_seconds": 12.9,
+        "status": "passed"
+      },
+      "Rangwali Holi": {
+        "name": "Rangwali Holi",
+        "month": "Chaitra",
+        "paksha": "krishna",
+        "tithi_num": 1,
+        "year": 2026,
+        "result": null,
+        "elapsed_seconds": 57.6,
+        "status": "failed"
+      },
+      "Dussehra": {
+        "name": "Dussehra",
+        "month": "Ashwin",
+        "paksha": "shukla",
+        "tithi_num": 10,
+        "year": 2026,
+        "result": "2026-09-21",
+        "elapsed_seconds": 20.7,
+        "status": "passed"
+      },
+      "Sharad Navaratri start": {
+        "name": "Sharad Navaratri start",
+        "month": "Ashwin",
+        "paksha": "shukla",
+        "tithi_num": 1,
+        "year": 2026,
+        "result": "2026-09-13",
+        "elapsed_seconds": 41.2,
+        "status": "passed"
+      },
+      "Chaitra Navaratri start": {
+        "name": "Chaitra Navaratri start",
+        "month": "Chaitra",
+        "paksha": "shukla",
+        "tithi_num": 1,
+        "year": 2026,
+        "result": "2026-03-20",
+        "elapsed_seconds": 53.4,
+        "status": "passed"
+      },
+      "Ganesh Chaturthi": {
+        "name": "Ganesh Chaturthi",
+        "month": "Bhadrapada",
+        "paksha": "shukla",
+        "tithi_num": 4,
+        "year": 2026,
+        "result": "2026-08-16",
+        "elapsed_seconds": 20.4,
+        "status": "passed"
+      },
+      "Maha Shivaratri": {
+        "name": "Maha Shivaratri",
+        "month": "Magha",
+        "paksha": "krishna",
+        "tithi_num": 14,
+        "year": 2026,
+        "result": "2026-02-16",
+        "elapsed_seconds": 16.8,
+        "status": "passed"
+      },
+      "Ram Navami": {
+        "name": "Ram Navami",
+        "month": "Chaitra",
+        "paksha": "shukla",
+        "tithi_num": 9,
+        "year": 2026,
+        "result": "2026-03-27",
+        "elapsed_seconds": 14.9,
+        "status": "passed"
+      },
+      "Guru Purnima": {
+        "name": "Guru Purnima",
+        "month": "Ashadha",
+        "paksha": "shukla",
+        "tithi_num": 15,
+        "year": 2026,
+        "result": "2026-06-29",
+        "elapsed_seconds": 17.5,
+        "status": "passed"
+      },
+      "Janmashtami": {
+        "name": "Janmashtami",
+        "month": "Bhadrapada",
+        "paksha": "krishna",
+        "tithi_num": 8,
+        "year": 2026,
+        "result": "2026-09-04",
+        "elapsed_seconds": 11.1,
+        "status": "passed"
+      },
+      "Karva Chauth": {
+        "name": "Karva Chauth",
+        "month": "Kartik",
+        "paksha": "krishna",
+        "tithi_num": 4,
+        "year": 2026,
+        "result": "2026-10-29",
+        "elapsed_seconds": 9.2,
+        "status": "passed"
+      },
+      "Vasant Panchami": {
+        "name": "Vasant Panchami",
+        "month": "Magha",
+        "paksha": "shukla",
+        "tithi_num": 5,
+        "year": 2026,
+        "result": "2026-01-23",
+        "elapsed_seconds": 14.8,
+        "status": "passed"
+      },
+      "Dhanteras": {
+        "name": "Dhanteras",
+        "month": "Kartik",
+        "paksha": "krishna",
+        "tithi_num": 13,
+        "year": 2026,
+        "result": "2026-11-07",
+        "elapsed_seconds": 10.2,
+        "status": "passed"
+      },
+      "Naraka Chaturdashi": {
+        "name": "Naraka Chaturdashi",
+        "month": "Kartik",
+        "paksha": "krishna",
+        "tithi_num": 14,
+        "year": 2026,
+        "result": "2026-11-08",
+        "elapsed_seconds": 9.3,
+        "status": "passed"
+      },
+      "Bhai Dooj": {
+        "name": "Bhai Dooj",
+        "month": "Kartik",
+        "paksha": "shukla",
+        "tithi_num": 2,
+        "year": 2026,
+        "result": "2026-10-12",
+        "elapsed_seconds": 21.9,
+        "status": "passed"
+      },
+      "Govardhan Puja": {
+        "name": "Govardhan Puja",
+        "month": "Kartik",
+        "paksha": "shukla",
+        "tithi_num": 1,
+        "year": 2026,
+        "result": "2026-10-12",
+        "elapsed_seconds": 23.1,
+        "status": "passed"
+      },
+      "Hanuman Jayanti": {
+        "name": "Hanuman Jayanti",
+        "month": "Chaitra",
+        "paksha": "shukla",
+        "tithi_num": 15,
+        "year": 2026,
+        "result": "2026-04-03",
+        "elapsed_seconds": 13.8,
+        "status": "passed"
+      }
+    }
+  },
+  "ekadashis": [],
+  "metadata": {
+    "last_run": "2026-06-11",
+    "year": 2026
+  }
+}

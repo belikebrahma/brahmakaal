@@ -37,12 +37,12 @@ class EmailService:
     """Email service for authentication and notifications"""
     
     def __init__(self):
-        self.smtp_host = "smtp.zoho.in"
-        self.smtp_port = 465
-        self.smtp_user = "aham@brah.ma"
-        self.smtp_pass = "6whrzKc*@brahma"
-        self.smtp_secure = True
-        self.from_email = "aham@brah.ma"
+        self.smtp_host = settings.smtp_host or ""
+        self.smtp_port = settings.smtp_port
+        self.smtp_user = settings.smtp_username or ""
+        self.smtp_pass = settings.smtp_password or ""
+        self.smtp_secure = settings.smtp_secure
+        self.from_email = settings.email_from or ""
         self.from_name = "Brahmakaal Team"
         
         # Template environment

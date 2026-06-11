@@ -88,7 +88,7 @@ async def get_festivals(
             )
             
             # Try cache first
-            cached_result = cache.get(cache_key)
+            cached_result = await cache.get(cache_key)
             if cached_result:
                 return cached_result
         
@@ -172,7 +172,7 @@ async def get_festivals(
         
         # Cache result
         if cache:
-            cache.set(cache_key, response, ttl=86400)  # Cache for 24 hours
+            await cache.set(cache_key, response, ttl=86400)  # Cache for 24 hours
         
         # Store in database (async, don't wait)
         try:

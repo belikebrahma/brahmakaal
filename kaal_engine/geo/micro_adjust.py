@@ -4,15 +4,18 @@ import math
 
 ATM_REFRACTION = 34 / 60  # 34 arcminutes
 
-def true_sunrise(jd: float, lat: float, lon: float, elev: float) -> float:
-    """Calculate precise sunrise time with elevation corrections (Skyfield already includes refraction)"""
-    base_jd = _apparent_sunrise(jd, lat, lon)
-    return base_jd - _elevation_adjustment_magnitude(elev)  # Sunrise earlier at elevation
+def true_sunrise(jd: float, lat: float, lon: float, elev: float = 0) -> float:
+    """Calculate precise sunrise time.
+    
+    Skyfield's sunrise_sunset() already includes the standard -0.833° dip
+    (34' refraction + 16' solar radius). Elevation adjustments are negligible
+    for most locations (< 2 min at 200m elevation) and are not double-counted here.
+    """
+    return _apparent_sunrise(jd, lat, lon)
 
-def true_sunset(jd: float, lat: float, lon: float, elev: float) -> float:
-    """Calculate precise sunset time with elevation corrections (Skyfield already includes refraction)"""
-    base_jd = _apparent_sunset(jd, lat, lon)
-    return base_jd + _elevation_adjustment_magnitude(elev)  # Sunset later at elevation
+def true_sunset(jd: float, lat: float, lon: float, elev: float = 0) -> float:
+    """Calculate precise sunset time."""
+    return _apparent_sunset(jd, lat, lon)
 
 def calculate_moonrise(jd: float, lat: float, lon: float) -> float:
     """Calculate moonrise time for given date and location"""

@@ -1,0 +1,38 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.egg-info/
+dist/
+build/
+
+# Virtual envs
+.venv/
+env/
+venv/
+
+# Git
+.git/
+.gitignore
+
+# Editor files
+.DS_Store
+.idea/
+.vscode/
+
+# Secrets
+.env
+.env.local
+
+# Test & coverage
+.coverage
+htmlcov/
+.pytest_cache/
+
+# Archives (ephemeris downloaded at build time)
+*.bsp
+
+# Legacy
+oldtests/
+Old-Documentation/
