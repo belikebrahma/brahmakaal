@@ -424,20 +424,16 @@ async def get_festival_timings(
             )
         
         # 2. Compute the festival date using the scanner
-        from ...core.festival_scanner import TithiScanner
+        from ...core.festival_scanner import TithiScanner, scan_festival as scanner_scan
         
         scanner = TithiScanner(kaal)
         
         if rule.festival_type.value.lower() == "lunar" and rule.month and rule.tithi:
-            # Lunar festival — scan for the tithi
-            paksha_num = rule.tithi if rule.paksha == "shukla" else rule.tithi + 15
-            result = scanner.scan_festival(
-                year=year,
-                month_name=rule.month,
-                tithi_number=paksha_num,
-                evening_start=rule.evening_start,
-            )
-            festival_date = result["date"]
+            # Lunar festival — scan for the tithi using scan_festival function
+            result = scanner_scan(scanner, rule, year)
+            if result is None:
+                raise HTTPException(status_code=404, detail=f"Could not compute date for '{festival_name}' in {year}")
+            festival_date = result
             method = "lunar_scan"
             
         else:
