@@ -432,6 +432,27 @@ def cmd_festivals(args):
                 f.write(json_content)
             print(f"JSON calendar exported to: {args.export_json}")
 
+def cmd_populate_festivals(args):
+    """Pre-compute and store all festival data in the database for fast serving."""
+    import sys
+    import os
+    
+    # Add project root to path
+    project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    if project_root not in sys.path:
+        sys.path.insert(0, project_root)
+    
+    import asyncio
+    from scripts.populate_festivals_db import populate_festivals
+    
+    exit_code = asyncio.run(populate_festivals(
+        start_year=args.start_year,
+        end_year=args.end_year,
+        ephemeris_path=args.ephemeris,
+    ))
+    exit(exit_code)
+
+
 def main():
     parser = argparse.ArgumentParser(description='Brahmakaal - Advanced Vedic Ephemeris Engine')
     
@@ -507,6 +528,12 @@ def main():
     festival_parser.add_argument('--export-ical', type=str, help='Export to iCal file (.ics)')
     festival_parser.add_argument('--export-json', type=str, help='Export to JSON file (.json)')
     festival_parser.set_defaults(func=cmd_festivals)
+    
+    # Populate festivals command
+    populate_parser = subparsers.add_parser('populate-festivals', help='Pre-compute all festivals and store in DB for fast serving')
+    populate_parser.add_argument('--start-year', type=int, default=2025, help='Start year (default: 2025)')
+    populate_parser.add_argument('--end-year', type=int, default=2027, help='End year (default: 2027)')
+    populate_parser.set_defaults(func=cmd_populate_festivals)
     
     args = parser.parse_args()
     

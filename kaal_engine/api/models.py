@@ -238,6 +238,7 @@ class FestivalResponse(BaseModel):
     total_festivals: int = Field(..., description="Total festivals")
     export_url: Optional[str] = Field(None, description="Export file URL")
     request_timestamp: DateTime = Field(..., description="Request timestamp")
+    from_db: bool = Field(False, description="Whether response was served from database")
 
 class AyanamshaComparisonResponse(BaseModel):
     """Response model for ayanamsha comparison"""
