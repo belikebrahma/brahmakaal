@@ -428,7 +428,7 @@ async def get_festival_timings(
         
         scanner = TithiScanner(kaal)
         
-        if rule.festival_type.value == "LUNAR" and rule.month and rule.tithi:
+        if rule.festival_type.value.lower() == "lunar" and rule.month and rule.tithi:
             # Lunar festival — scan for the tithi
             paksha_num = rule.tithi if rule.paksha == "shukla" else rule.tithi + 15
             result = scanner.scan_festival(
@@ -447,8 +447,12 @@ async def get_festival_timings(
             e_regions = [ER.ALL_INDIA]
             e_categories = [rule.category] if rule.category else [EC.MAJOR]
             
-            festivals = festival_engine.calculate_festival_dates(
-                year=year, regions=e_regions, categories=e_categories
+            loop = asyncio.get_event_loop()
+            festivals = await loop.run_in_executor(
+                None,
+                lambda: festival_engine.calculate_festival_dates(
+                    year=year, regions=e_regions, categories=e_categories
+                )
             )
             
             matching = [f for f in festivals if f.festival_rule.name == rule.name]
