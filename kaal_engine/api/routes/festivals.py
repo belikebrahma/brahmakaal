@@ -430,7 +430,11 @@ async def get_festival_timings(
         
         if rule.festival_type.value.lower() == "lunar" and rule.month and rule.tithi:
             # Lunar festival — scan for the tithi using scan_festival function
-            result = scanner_scan(scanner, rule, year)
+            loop = asyncio.get_event_loop()
+            result = await loop.run_in_executor(
+                None,
+                lambda: scanner_scan(scanner, rule, year)
+            )
             if result is None:
                 raise HTTPException(status_code=404, detail=f"Could not compute date for '{festival_name}' in {year}")
             festival_date = result
@@ -466,12 +470,16 @@ async def get_festival_timings(
         dt_utc = dt_local - timedelta(hours=timezone_offset)
         dt_utc = dt_utc.replace(tzinfo=timezone.utc)
         
-        panchang = kaal.get_panchang(
-            lat=latitude,
-            lon=longitude,
-            dt=dt_utc,
-            elevation=elevation,
-            timezone_offset=timezone_offset,
+        loop = asyncio.get_event_loop()
+        panchang = await loop.run_in_executor(
+            None,
+            lambda: kaal.get_panchang(
+                lat=latitude,
+                lon=longitude,
+                dt=dt_utc,
+                elevation=elevation,
+                timezone_offset=timezone_offset,
+            )
         )
         
         # 4. Get tithi boundaries (start/end times)
