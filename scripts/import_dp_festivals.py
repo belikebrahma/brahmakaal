@@ -102,7 +102,7 @@ async def import_dp_festivals(database_url: str = None, verbose: bool = True):
             await session.execute(delete(FestivalCalendar).where(FestivalCalendar.year == year))
             
             stored = 0
-            for name, date_str, _ in year_entries:
+            for name, date_str in year_entries:
                 try:
                     fest_date = datetime.strptime(date_str, "%Y-%m-%d").date()
                 except ValueError:
