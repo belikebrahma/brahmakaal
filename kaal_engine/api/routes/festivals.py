@@ -357,7 +357,7 @@ async def search_festivals(
     results = []
     seen = set()
     
-    for rule in festival_engine.rules:
+    for rule in festival_engine.festival_rules:
         if q.lower() in rule.name.lower() or q.lower() in rule.english_name.lower():
             if rule.name not in seen:
                 seen.add(rule.name)
@@ -398,21 +398,21 @@ async def get_festival_timings(
     try:
         # 1. Find the festival rule by name (exact or partial match)
         rule = None
-        for r in festival_engine.rules:
+        for r in festival_engine.festival_rules:
             if r.name.lower() == festival_name.lower():
                 rule = r
                 break
         
         if not rule:
             # Try alternative names
-            for r in festival_engine.rules:
+            for r in festival_engine.festival_rules:
                 if any(festival_name.lower() in alt.lower() for alt in (r.alternative_names or [])):
                     rule = r
                     break
         
         if not rule:
             # Try partial match — return suggestions
-            matches = [r.name for r in festival_engine.rules if festival_name.lower() in r.name.lower()]
+            matches = [r.name for r in festival_engine.festival_rules if festival_name.lower() in r.name.lower()]
             matches = matches[:10]
             raise HTTPException(
                 status_code=404,
