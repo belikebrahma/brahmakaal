@@ -386,6 +386,7 @@ async def get_festival_timings(
     elevation: float = Query(0.0, ge=0),
     festival_engine=Depends(get_festival_engine),
     kaal=Depends(get_kaal_engine),
+    db: AsyncSession = Depends(get_db),
 ):
     """
     Get precise timings for a festival at a specific location.
@@ -423,32 +424,58 @@ async def get_festival_timings(
                 },
             )
         
-        # 2. Compute the festival date using the scanner
-        from ...core.festival_scanner import TithiScanner, scan_festival as scanner_scan
+        # 1b. Try DB first for the festival date (fast, avoids slow scanner)
+        from ...db.models import FestivalCalendar as FCModel
+        from sqlalchemy import select
         
-        scanner = TithiScanner(kaal)
+        festival_date = None
+        method = None
         
-        if rule.festival_type.value.lower() == "lunar" and rule.month and rule.tithi:
-            # Lunar festival — scan for the tithi using scan_festival function
-            loop = asyncio.get_event_loop()
-            result = await loop.run_in_executor(
-                None,
-                lambda: scanner_scan(scanner, rule, year)
+        # Try exact name match in DB
+        db_query = select(FCModel.festival_date).where(
+            FCModel.festival_name == rule.name,
+            FCModel.year == year,
+        )
+        result = await db.execute(db_query)
+        db_row = result.scalar_one_or_none()
+        if db_row:
+            festival_date = db_row
+            method = "db"
+        
+        if festival_date is None and rule.english_name:
+            db_query = select(FCModel.festival_date).where(
+                FCModel.english_name == rule.english_name,
+                FCModel.year == year,
             )
-            if result is None:
-                raise HTTPException(status_code=404, detail=f"Could not compute date for '{festival_name}' in {year}")
-            festival_date = result
-            method = "lunar_scan"
+            result = await db.execute(db_query)
+            db_row = result.scalar_one_or_none()
+            if db_row:
+                festival_date = db_row
+                method = "db"
+        
+        # 2. Fall back to scanner if not in DB
+        if festival_date is None:
+            from ...core.festival_scanner import TithiScanner, scan_festival as scanner_scan
+            scanner = TithiScanner(kaal)
             
-        else:
-            # For non-lunar festivals, compute via engine
-            from ...core.festivals import FestivalCategory as EC, Region as ER
-            
-            e_regions = [ER.ALL_INDIA]
-            e_categories = [rule.category] if rule.category else [EC.MAJOR]
-            
-            loop = asyncio.get_event_loop()
-            festivals = await loop.run_in_executor(
+            if rule.festival_type.value.lower() == "lunar" and rule.month and rule.tithi:
+                loop = asyncio.get_event_loop()
+                result = await loop.run_in_executor(
+                    None, lambda: scanner_scan(scanner, rule, year)
+                )
+                if result is None:
+                    raise HTTPException(status_code=404, detail=f"Could not compute date for '{festival_name}' in {year}")
+                festival_date = result
+                method = "lunar_scan"
+            else:
+                # For non-lunar festivals, compute via engine
+                from ...core.festivals import FestivalCategory as EC, Region as ER
+                
+                e_regions = [ER.ALL_INDIA]
+                e_categories = [rule.category] if rule.category else [EC.MAJOR]
+                
+                loop = asyncio.get_event_loop()
+                festivals = await loop.run_in_executor(
                 None,
                 lambda: festival_engine.calculate_festival_dates(
                     year=year, regions=e_regions, categories=e_categories
