@@ -432,6 +432,18 @@ def cmd_festivals(args):
                 f.write(json_content)
             print(f"JSON calendar exported to: {args.export_json}")
 
+def cmd_import_festivals(args):
+    """Import existing DP festival data into DB (fast, no computation)."""
+    import sys, os
+    project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    if project_root not in sys.path:
+        sys.path.insert(0, project_root)
+    
+    import asyncio
+    from scripts.import_dp_festivals import import_dp_festivals
+    exit(asyncio.run(import_dp_festivals(database_url=args.db_url)))
+
+
 def cmd_populate_festivals(args):
     """Pre-compute and store all festival data in the database for fast serving."""
     import sys
@@ -528,6 +540,11 @@ def main():
     festival_parser.add_argument('--export-ical', type=str, help='Export to iCal file (.ics)')
     festival_parser.add_argument('--export-json', type=str, help='Export to JSON file (.json)')
     festival_parser.set_defaults(func=cmd_festivals)
+    
+    # Import festivals (import DP data) command
+    import_parser = subparsers.add_parser('import-festivals', help='Import existing DP festival data into DB (fast, 2025-2027)')
+    import_parser.add_argument('--db-url', type=str, help='Database URL (default: from env)')
+    import_parser.set_defaults(func=cmd_import_festivals)
     
     # Populate festivals command
     populate_parser = subparsers.add_parser('populate-festivals', help='Pre-compute all festivals and store in DB for fast serving')
